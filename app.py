@@ -56,9 +56,14 @@ def main():
 
     with tab1:
         df = pd.read_csv(root_dir_path + "/data/jobs_vs_gdp_per_capita.csv")
-        year = 2024
-        job = "Nurse"
-        job_df = df.loc[(df["Job"] == job) & (df["Year"] == year), :]
+
+        selected_year = st.selectbox(
+            label="Year", options=list(range(1980, 2030)), index=44
+        )
+        selected_job = st.selectbox(
+            label="Job", options=["Bricklayer", "Doctor", "Nurse"], index=2
+        )
+        job_df = df.loc[(df["Job"] == selected_job) & (df["Year"] == selected_year), :]
         fig = px.scatter(
             job_df,
             x="GDP_per_capita_USD",
@@ -75,7 +80,9 @@ def main():
             # trendline="ols",
             trendline_scope="overall",
             trendline_color_override="black",
-            title="Median pay of {0}s VS. GDP per capita ({1})".format(job, year),
+            title="Median pay of {0}s VS. GDP per capita ({1})".format(
+                selected_job, selected_year
+            ),
             log_x=True,
             log_y=True,
         )
