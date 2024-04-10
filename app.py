@@ -64,6 +64,7 @@ def main():
             label="Job", options=["Bricklayer", "Doctor", "Nurse"], index=2
         )
         job_df = df.loc[(df["Job"] == selected_job) & (df["Year"] == selected_year), :]
+        st.dataframe(job_df)
         fig = px.scatter(
             job_df,
             x="GDP_per_capita_USD",
@@ -77,8 +78,9 @@ def main():
             size_max=80,
             hover_data={"Country": True, "Population": True},
             # text="Country",
-            # trendline="ols",
+            trendline="ols",
             trendline_scope="overall",
+            trendline_options=dict(log_x=False, log_y=False),
             trendline_color_override="black",
             title="Median pay of {0}s VS. GDP per capita ({1})".format(
                 selected_job, selected_year
