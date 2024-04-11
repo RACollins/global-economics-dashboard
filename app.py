@@ -55,16 +55,37 @@ def main():
     tab1, tab2 = st.tabs([tab_headers[k] for k, v in tab_headers.items()])
 
     with tab1:
+        ### Get dataframe
         df = pd.read_csv(root_dir_path + "/data/jobs_vs_gdp_per_capita.csv")
 
-        selected_year = st.selectbox(
-            label="Year", options=list(range(1980, 2030)), index=44
+        ### Filters
+        left_buffer_cols, left_col, right_col, right_buffer_cols = st.columns(
+            [2, 4, 4, 2]
         )
-        selected_job = st.selectbox(
-            label="Job", options=["Bricklayer", "Doctor", "Nurse"], index=2
+        with left_col:
+            with st.container(border=True):
+                selected_year = st.selectbox(
+                    label="Year", options=list(range(1980, 2030)), index=44
+                )
+                selected_job = st.selectbox(
+                    label="Job",
+                    options=["Bricklayer", "Doctor", "Nurse", "All"],
+                    index=2,
+                )
+        with right_col:
+            with st.container(border=True):
+                log_x = st.checkbox("log_x")
+                log_y = st.checkbox("log_y")
+
+        ### Apply filters
+        job_df = (
+            df.loc[(df["Job"] == selected_job) & (df["Year"] == selected_year), :]
+            .drop(columns=["Unnamed: 0"])
+            .reset_index(drop=True)
         )
-        job_df = df.loc[(df["Job"] == selected_job) & (df["Year"] == selected_year), :]
-        st.dataframe(job_df)
+        # st.dataframe(job_df)
+
+        ### Plot
         fig = px.scatter(
             job_df,
             x="GDP_per_capita_USD",
@@ -85,8 +106,8 @@ def main():
             title="Median pay of {0}s VS. GDP per capita ({1})".format(
                 selected_job, selected_year
             ),
-            log_x=True,
-            log_y=True,
+            log_x=log_x,
+            log_y=log_y,
         )
         fig.update_traces(textposition="top center")
         with st.container(border=True):
