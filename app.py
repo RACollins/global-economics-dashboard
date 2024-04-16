@@ -30,6 +30,26 @@ st.set_page_config(
 #################
 
 
+def apply_graph_stylings(fig):
+    fig.update_traces(textposition="top center")
+    fig.update_layout(plot_bgcolor="white")
+    fig.update_xaxes(
+        mirror=True,
+        ticks="outside",
+        showline=True,
+        linecolor="black",
+        gridcolor="lightgrey",
+    )
+    fig.update_yaxes(
+        mirror=True,
+        ticks="outside",
+        showline=True,
+        linecolor="black",
+        gridcolor="lightgrey",
+    )
+    return fig
+
+
 ##################
 ### App proper ###
 ##################
@@ -76,6 +96,8 @@ def main():
             with st.container(border=True):
                 log_x = st.checkbox("log_x")
                 log_y = st.checkbox("log_y")
+            with st.container(border=True):
+                show_pop = st.checkbox("Show Population")
 
         ### Apply filters
         job_df = (
@@ -86,6 +108,7 @@ def main():
         # st.dataframe(job_df)
 
         ### Plot
+        size = "Population" if show_pop else None
         fig = px.scatter(
             job_df,
             x="GDP_per_capita_USD",
@@ -95,13 +118,13 @@ def main():
             category_orders={
                 "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
             },
-            size="Population",
+            size=size,
             size_max=80,
             hover_data={"Country": True, "Population": True},
             # text="Country",
             trendline="ols",
             trendline_scope="overall",
-            trendline_options=dict(log_x=False, log_y=False),
+            trendline_options=dict(log_x=log_x, log_y=log_y),
             trendline_color_override="black",
             title="Median pay of {0}s VS. GDP per capita ({1})".format(
                 selected_job, selected_year
@@ -109,9 +132,9 @@ def main():
             log_x=log_x,
             log_y=log_y,
         )
-        fig.update_traces(textposition="top center")
+        fig = apply_graph_stylings(fig)
         with st.container(border=True):
-            st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+            st.plotly_chart(fig, theme=None, use_container_width=True)
     with tab2:
         st.info("Something should go here...")
 
