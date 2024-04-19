@@ -112,7 +112,7 @@ def main():
             ]
             .drop(columns=["Unnamed: 0"])
             .reset_index(drop=True)
-        )
+        ).astype({"GDP_per_capita_USD": "float64"})
         # st.dataframe(job_df)
 
         ### Plot
@@ -132,7 +132,7 @@ def main():
             # text="Country",
             trendline="ols",
             trendline_scope="overall",
-            trendline_options=dict(log_x=log_x, log_y=log_y),
+            # trendline_options=dict(log_x=log_x, log_y=log_y),
             trendline_color_override="black",
             title="Median pay of {0}s VS. GDP per capita ({1})".format(
                 selected_job, selected_year
@@ -145,7 +145,7 @@ def main():
             st.plotly_chart(fig, theme=None, use_container_width=True)
     with tab2:
         ### Get dataframe
-        forex_df = get_forex_df(root_dir_path)
+        forex_df = get_forex_df(root_dir_path).astype({"GDP_per_capita_USD": "float64"})
         # st.dataframe(forex_df)
 
         ### Plot
@@ -165,7 +165,7 @@ def main():
             # text="Country",
             trendline="ols",
             trendline_scope="overall",
-            trendline_options=dict(log_x=log_x, log_y=log_y),
+            # trendline_options=dict(log_x=log_x, log_y=log_y),
             trendline_color_override="black",
             title="Forex Reserves Including Gold per Person VS. GDP per capita (2024)",
             log_x=log_x,
