@@ -62,6 +62,13 @@ def apply_graph_stylings(fig):
     return fig
 
 
+def add_country_lables(fig, df, countries, x_title, y_title):
+    df_xy = df.loc[df["Country"].isin(countries), [x_title, y_title]]
+    for i, (x, y) in enumerate(df_xy.itertuples(index=False)):
+        fig.add_annotation(x=x, y=y, text=countries[i], showarrow=False)
+    return fig
+
+
 ##################
 ### App proper ###
 ##################
@@ -71,6 +78,10 @@ def main():
     st.title("Global Economics Dashboard")
     st.subheader("View various global economic data")
 
+    ### Import data
+    jobs_df = get_jobs_df(root_dir_path)
+    forex_df = get_forex_df(root_dir_path).astype({"GDP_per_capita_USD": "float64"})
+
     ### Side bar
     with st.sidebar:
         st.header("Universal options")
@@ -79,6 +90,11 @@ def main():
             log_y = st.checkbox("log_y")
         with st.container(border=True):
             show_pop = st.checkbox("Show Population")
+        with st.container(border=True):
+            display_countries = st.multiselect(
+                label="Country Labels",
+                options=sorted(forex_df["Country"].values),
+            )
 
     ### Tabs
     tab_headers = {
@@ -88,9 +104,6 @@ def main():
     tab1, tab2 = st.tabs([tab_headers[k] for k, v in tab_headers.items()])
 
     with tab1:
-        ### Get dataframe
-        jobs_df = get_jobs_df(root_dir_path)
-
         ### Filters
         left_jobs_buffer, centre_jobs_col, right_jobs_buffer = st.columns([2, 8, 2])
         with centre_jobs_col:
@@ -117,10 +130,11 @@ def main():
 
         ### Plot
         size = "Population" if show_pop else None
+        x_title, y_title = "GDP_per_capita_USD", "Median_USD"
         fig = px.scatter(
             job_df,
-            x="GDP_per_capita_USD",
-            y="Median_USD",
+            x=x_title,
+            y=y_title,
             color="Region",
             color_discrete_sequence=["red", "magenta", "goldenrod", "green", "blue"],
             category_orders={
@@ -129,7 +143,7 @@ def main():
             size=size,
             size_max=80,
             hover_data={"Country": True, "Population": True},
-            # text="Country",
+            # text=display_countries,
             trendline="ols",
             trendline_scope="overall",
             # trendline_options=dict(log_x=log_x, log_y=log_y),
@@ -141,19 +155,23 @@ def main():
             log_y=log_y,
         )
         fig = apply_graph_stylings(fig)
+        fig = add_country_lables(
+            fig,
+            df=job_df,
+            countries=display_countries,
+            x_title=x_title,
+            y_title=y_title,
+        )
         with st.container(border=True):
             st.plotly_chart(fig, theme=None, use_container_width=True)
     with tab2:
-        ### Get dataframe
-        forex_df = get_forex_df(root_dir_path).astype({"GDP_per_capita_USD": "float64"})
-        # st.dataframe(forex_df)
-
         ### Plot
         size = "Population" if show_pop else None
+        x_title, y_title = "GDP_per_capita_USD", "Forex_Reserves_per_person_USD"
         fig = px.scatter(
             forex_df,
-            x="GDP_per_capita_USD",
-            y="Forex_Reserves_per_person_USD",
+            x=x_title,
+            y=y_title,
             color="Region",
             color_discrete_sequence=["red", "magenta", "goldenrod", "green", "blue"],
             category_orders={
@@ -162,7 +180,7 @@ def main():
             size=size,
             size_max=80,
             hover_data={"Country": True, "Population": True},
-            # text="Country",
+            # text=display_countries,
             trendline="ols",
             trendline_scope="overall",
             # trendline_options=dict(log_x=log_x, log_y=log_y),
@@ -172,6 +190,13 @@ def main():
             log_y=log_y,
         )
         fig = apply_graph_stylings(fig)
+        fig = add_country_lables(
+            fig,
+            df=forex_df,
+            countries=display_countries,
+            x_title=x_title,
+            y_title=y_title,
+        )
         with st.container(border=True):
             st.plotly_chart(fig, theme=None, use_container_width=True)
 
