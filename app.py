@@ -38,7 +38,12 @@ def get_jobs_df(root_dir_path):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_forex_df(root_dir_path):
-    df = pd.read_csv(root_dir_path + "/data/forex_vs_gdp_per_capita.csv")
+    df = (
+        pd.read_csv(root_dir_path + "/data/forex_vs_gdp_per_capita.csv")
+        .drop(columns=["Unnamed: 0.1"])
+        .drop_duplicates()
+        .reset_index(drop=True)
+    )
     return df
 
 
@@ -62,9 +67,14 @@ def apply_graph_stylings(fig):
     return fig
 
 
-def add_country_lables(fig, df, countries, x_title, y_title):
+def add_country_lables(fig, df, countries, x_title, y_title, log_x, log_y):
     df_xy = df.loc[df["Country"].isin(countries), [x_title, y_title]]
+    print(df_xy)
     for i, (x, y) in enumerate(df_xy.itertuples(index=False)):
+        if log_x:
+            x = np.log10(x)
+        if log_y:
+            y = np.log10(y)
         fig.add_annotation(x=x, y=y, text=countries[i], showarrow=False)
     return fig
 
@@ -81,6 +91,7 @@ def main():
     ### Import data
     jobs_df = get_jobs_df(root_dir_path)
     forex_df = get_forex_df(root_dir_path).astype({"GDP_per_capita_USD": "float64"})
+    # st.dataframe(forex_df)
 
     ### Side bar
     with st.sidebar:
@@ -124,6 +135,7 @@ def main():
                 :,
             ]
             .drop(columns=["Unnamed: 0"])
+            .drop_duplicates()
             .reset_index(drop=True)
         ).astype({"GDP_per_capita_USD": "float64"})
         # st.dataframe(job_df)
@@ -161,6 +173,8 @@ def main():
             countries=display_countries,
             x_title=x_title,
             y_title=y_title,
+            log_x=log_x,
+            log_y=log_y,
         )
         with st.container(border=True):
             st.plotly_chart(fig, theme=None, use_container_width=True)
@@ -196,6 +210,8 @@ def main():
             countries=display_countries,
             x_title=x_title,
             y_title=y_title,
+            log_x=log_x,
+            log_y=log_y,
         )
         with st.container(border=True):
             st.plotly_chart(fig, theme=None, use_container_width=True)
