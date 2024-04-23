@@ -185,7 +185,7 @@ def main():
             ### Download as CSV
             dwnld_csv_btn = st.download_button(
                 label="Download as CSV",
-                data=job_df.loc[:, ["Country", "Population", x_title, y_title]]
+                data=job_df.loc[:, ["Country", "Region", "Population", x_title, y_title]]
                 .to_csv(index=True, header=True)
                 .encode("utf-8"),
                 file_name="{0}_vs_{1}.csv".format(x_title, y_title),
@@ -231,7 +231,7 @@ def main():
             ### Download as CSV
             dwnld_csv_btn = st.download_button(
                 label="Download as CSV",
-                data=forex_df.loc[:, ["Country", "Population", x_title, y_title]]
+                data=forex_df.loc[:, ["Country", "Region", "Population", x_title, y_title]]
                 .to_csv(index=True, header=True)
                 .encode("utf-8"),
                 file_name="{0}_vs_{1}.csv".format(x_title, y_title),
