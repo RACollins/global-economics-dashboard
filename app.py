@@ -68,14 +68,15 @@ def apply_graph_stylings(fig):
 
 
 def add_country_lables(fig, df, countries, x_title, y_title, log_x, log_y):
-    df_xy = df.loc[df["Country"].isin(countries), [x_title, y_title]]
-    print(df_xy)
-    for i, (x, y) in enumerate(df_xy.itertuples(index=False)):
-        if log_x:
-            x = np.log10(x)
-        if log_y:
-            y = np.log10(y)
-        fig.add_annotation(x=x, y=y, text=countries[i], showarrow=False)
+    for country in countries:
+        x_array = df.loc[df["Country"] == country, x_title].values
+        y_array = df.loc[df["Country"] == country, y_title].values
+        if x_array.size == 0 or y_array.size == 0:
+            continue
+        x, y = x_array[0], y_array[0]
+        x = np.log10(x) if log_x else x
+        y = np.log10(y) if log_y else y
+        fig.add_annotation(x=x, y=y, text=country, showarrow=True)
     return fig
 
 
@@ -95,16 +96,17 @@ def main():
 
     ### Side bar
     with st.sidebar:
-        st.header("Universal options")
+        st.header("Plot Options")
         with st.container(border=True):
             log_x = st.checkbox("log_x")
             log_y = st.checkbox("log_y")
         with st.container(border=True):
-            show_pop = st.checkbox("Show Population")
+            show_pop = st.checkbox("Population")
         with st.container(border=True):
             display_countries = st.multiselect(
                 label="Country Labels",
                 options=sorted(forex_df["Country"].values),
+                placeholder="Add country labels to plots",
             )
 
     ### Tabs
@@ -119,9 +121,10 @@ def main():
         left_jobs_buffer, centre_jobs_col, right_jobs_buffer = st.columns([2, 8, 2])
         with centre_jobs_col:
             with st.container(border=True):
-                selected_year = st.selectbox(
-                    label="Year", options=list(range(1980, 2030)), index=44
-                )
+                # selected_year = st.selectbox(
+                #    label="Year", options=list(range(1980, 2030)), index=44
+                # )
+                selected_year = 2024
                 selected_job = st.selectbox(
                     label="Job",
                     options=["Bricklayer", "Doctor", "Nurse", "All"],
@@ -143,6 +146,7 @@ def main():
         ### Plot
         size = "Population" if show_pop else None
         x_title, y_title = "GDP_per_capita_USD", "Median_USD"
+        y_title = "Mean_USD" if selected_job == "All" else "Median_USD"
         fig = px.scatter(
             job_df,
             x=x_title,
@@ -160,8 +164,8 @@ def main():
             trendline_scope="overall",
             # trendline_options=dict(log_x=log_x, log_y=log_y),
             trendline_color_override="black",
-            title="Median pay of {0}s VS. GDP per capita ({1})".format(
-                selected_job, selected_year
+            title="{0} pay of {1} VS. GDP per capita ({2})".format(
+                y_title.split("_")[0], selected_job, selected_year
             ),
             log_x=log_x,
             log_y=log_y,
@@ -178,6 +182,15 @@ def main():
         )
         with st.container(border=True):
             st.plotly_chart(fig, theme=None, use_container_width=True)
+            ### Download as CSV
+            dwnld_csv_btn = st.download_button(
+                label="Download as CSV",
+                data=job_df.loc[:, ["Country", "Population", x_title, y_title]]
+                .to_csv(index=True, header=True)
+                .encode("utf-8"),
+                file_name="{0}_vs_{1}.csv".format(x_title, y_title),
+                mime="text/csv",
+            )
     with tab2:
         ### Plot
         size = "Population" if show_pop else None
@@ -215,6 +228,15 @@ def main():
         )
         with st.container(border=True):
             st.plotly_chart(fig, theme=None, use_container_width=True)
+            ### Download as CSV
+            dwnld_csv_btn = st.download_button(
+                label="Download as CSV",
+                data=forex_df.loc[:, ["Country", "Population", x_title, y_title]]
+                .to_csv(index=True, header=True)
+                .encode("utf-8"),
+                file_name="{0}_vs_{1}.csv".format(x_title, y_title),
+                mime="text/csv",
+            )
 
 
 if __name__ == "__main__":
