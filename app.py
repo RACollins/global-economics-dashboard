@@ -47,6 +47,14 @@ def get_forex_df(root_dir_path):
     return df
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_spending_df(root_dir_path):
+    df = pd.read_csv(root_dir_path + "/data/spending_vs_gdp_per_capita.csv").drop(
+        columns=["Unnamed: 0", "Code", "Continent"]
+    )
+    return df
+
+
 def apply_graph_stylings(fig):
     fig.update_traces(textposition="top center")
     fig.update_layout(plot_bgcolor="white")
@@ -92,7 +100,8 @@ def main():
     ### Import data
     jobs_df = get_jobs_df(root_dir_path)
     forex_df = get_forex_df(root_dir_path).astype({"GDP_per_capita_USD": "float64"})
-    # st.dataframe(forex_df)
+    spending_df = get_spending_df(root_dir_path)
+    # st.dataframe(spending_df)
 
     ### Side bar
     with st.sidebar:
@@ -110,20 +119,14 @@ def main():
             )
 
     ### Tabs
-    tab_headers = {
-        "tab1": "Salary vs. GDP per capita",
-        "tab2": "Forex vs. GDP per capita",
-    }
-    tab1, tab2 = st.tabs([tab_headers[k] for k, v in tab_headers.items()])
+    tab_headers = {"tab1": "Salaries", "tab2": "Forex.", "tab3": "Spending & Growth"}
+    tab1, tab2, tab3 = st.tabs([tab_headers[k] for k, v in tab_headers.items()])
 
     with tab1:
         ### Filters
         left_jobs_buffer, centre_jobs_col, right_jobs_buffer = st.columns([2, 8, 2])
         with centre_jobs_col:
             with st.container(border=True):
-                # selected_year = st.selectbox(
-                #    label="Year", options=list(range(1980, 2030)), index=44
-                # )
                 selected_year = 2024
                 selected_job = st.selectbox(
                     label="Job",
@@ -141,7 +144,6 @@ def main():
             .drop_duplicates()
             .reset_index(drop=True)
         ).astype({"GDP_per_capita_USD": "float64"})
-        # st.dataframe(job_df)
 
         ### Plot
         size = "Population" if show_pop else None
@@ -185,7 +187,9 @@ def main():
             ### Download as CSV
             dwnld_csv_btn = st.download_button(
                 label="Download as CSV",
-                data=job_df.loc[:, ["Country", "Region", "Population", x_title, y_title]]
+                data=job_df.loc[
+                    :, ["Country", "Region", "Population", x_title, y_title]
+                ]
                 .to_csv(index=True, header=True)
                 .encode("utf-8"),
                 file_name="{0}_vs_{1}.csv".format(x_title, y_title),
@@ -231,7 +235,113 @@ def main():
             ### Download as CSV
             dwnld_csv_btn = st.download_button(
                 label="Download as CSV",
-                data=forex_df.loc[:, ["Country", "Region", "Population", x_title, y_title]]
+                data=forex_df.loc[
+                    :, ["Country", "Region", "Population", x_title, y_title]
+                ]
+                .to_csv(index=True, header=True)
+                .encode("utf-8"),
+                file_name="{0}_vs_{1}.csv".format(x_title, y_title),
+                mime="text/csv",
+            )
+    with tab3:
+        ### Filters
+        left_years_buffer, centre_years_col, right_years_buffer = st.columns([2, 8, 2])
+        with centre_years_col:
+            with st.container(border=True):
+                spending_range = st.slider(
+                    "Spending Range",
+                    1986,
+                    2011,
+                    (1990, 2011),
+                    help="The difference in government expenditure between two years.",
+                )
+                growth_range = st.slider(
+                    "Growth Range",
+                    1986,
+                    2011,
+                    (1990, 2011),
+                    help="The difference in GDP per capita between two years.",
+                )
+
+        ### Apply filters
+        spend_col = "Change in Government Expenditure as % of GDP ({0} - {1})".format(
+            spending_range[0], spending_range[1]
+        )
+        growth_col = "Change in GDP per capita USD ({0} - {1})".format(
+            growth_range[0], growth_range[1]
+        )
+        spending_df[spend_col] = spending_df.groupby(["Country"])[
+            "Government Expenditure (IMF based on Mauro et al. (2015))"
+        ].diff(spending_range[1] - spending_range[0])
+        spending_df[growth_col] = spending_df.groupby(["Country"])[
+            "GDP per capita, PPP (constant 2017 international $)"
+        ].diff(growth_range[1] - growth_range[0])
+
+        spending_df = spending_df.loc[
+            spending_df["Year"].isin([spending_range[1], growth_range[1]]), :
+        ]
+
+        all_countries = spending_df["Country"].unique()
+        for country in all_countries:
+            spending_df.loc[spending_df["Country"] == country, spend_col] = (
+                spending_df.loc[
+                    (spending_df["Country"] == country)
+                    & (spending_df["Year"] == spending_range[1]),
+                    spend_col,
+                ]
+            ).values[0]
+            spending_df.loc[spending_df["Country"] == country, growth_col] = (
+                spending_df.loc[
+                    (spending_df["Country"] == country)
+                    & (spending_df["Year"] == growth_range[1]),
+                    growth_col,
+                ]
+            ).values[0]
+        # st.dataframe(spending_df)
+
+        ### Plot
+        size = "Population" if show_pop else None
+        x_title, y_title = spend_col, growth_col
+        filter_year = max(spending_range[1], growth_range[1])
+        fig = px.scatter(
+            spending_df.loc[spending_df["Year"] == filter_year],
+            x=x_title,
+            y=y_title,
+            color="Region",
+            color_discrete_sequence=["red", "magenta", "goldenrod", "green", "blue"],
+            category_orders={
+                "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+            },
+            size=size,
+            size_max=80,
+            hover_data={"Country": True, "Population": True},
+            # text=display_countries,
+            trendline="ols",
+            trendline_scope="overall",
+            # trendline_options=dict(log_x=log_x, log_y=log_y),
+            trendline_color_override="black",
+            title="Change in Government Spending as a Share of GDP vs. Change in GDP per capita",
+            log_x=log_x,
+            log_y=log_y,
+        )
+        fig = apply_graph_stylings(fig)
+        fig = add_country_lables(
+            fig,
+            df=spending_df,
+            countries=display_countries,
+            x_title=x_title,
+            y_title=y_title,
+            log_x=log_x,
+            log_y=log_y,
+        )
+        with st.container(border=True):
+            st.plotly_chart(fig, theme=None, use_container_width=True)
+            ### Download as CSV
+            dwnld_csv_btn = st.download_button(
+                label="Download as CSV",
+                data=spending_df.loc[
+                    :, ["Country", "Region", "Population", x_title, y_title]
+                ]
                 .to_csv(index=True, header=True)
                 .encode("utf-8"),
                 file_name="{0}_vs_{1}.csv".format(x_title, y_title),
