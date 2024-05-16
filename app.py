@@ -75,6 +75,17 @@ def apply_graph_stylings(fig):
     return fig
 
 
+def add_repeats(df, lowest_repeat, highest_repeat):
+    df["repeat"] = (
+        (df["Population"] - df["Population"].min())
+        / (df["Population"].max() - df["Population"].min())
+        * (highest_repeat - lowest_repeat)
+        + lowest_repeat
+    ).round()
+    df = df.loc[df.index.repeat(df["repeat"])]
+    return df
+
+
 def add_country_lables(fig, df, countries, x_title, y_title, log_x, log_y):
     for country in countries:
         x_array = df.loc[df["Country"] == country, x_title].values
@@ -101,22 +112,43 @@ def main():
     jobs_df = get_jobs_df(root_dir_path)
     forex_df = get_forex_df(root_dir_path).astype({"GDP_per_capita_USD": "float64"})
     spending_df = get_spending_df(root_dir_path)
-    # st.dataframe(spending_df)
 
     ### Side bar
     with st.sidebar:
         st.header("Plot Options")
         with st.container(border=True):
+            st.markdown("##### Axes")
             log_x = st.checkbox("log_x")
             log_y = st.checkbox("log_y")
         with st.container(border=True):
-            show_pop = st.checkbox("Population")
+            st.markdown("##### Population")
+            show_pop = st.checkbox(
+                "Display",
+                help="Display the population of each country as marker size.",
+            )
+            weight_pop = st.checkbox(
+                "Weight",
+                help="Weight trendlines by the population of each country.",
+            )
         with st.container(border=True):
             display_countries = st.multiselect(
                 label="Country Labels",
                 options=sorted(forex_df["Country"].values),
                 placeholder="Add country labels to plots",
             )
+        with st.container(border=True):
+            remove_countries = st.multiselect(
+                label="Remove Countries",
+                options=sorted(forex_df["Country"].values),
+                placeholder="Remove countries from plots",
+            )
+
+    if remove_countries:
+        jobs_df = jobs_df.loc[~jobs_df["Country"].isin(remove_countries), :]
+        forex_df = forex_df.loc[~forex_df["Country"].isin(remove_countries), :]
+        spending_df = spending_df.loc[~spending_df["Country"].isin(remove_countries), :]
+    if weight_pop:
+        lowest_repeat, highest_repeat = 1, 100
 
     ### Tabs
     tab_headers = {"tab1": "Salaries", "tab2": "Forex.", "tab3": "Spending & Growth"}
@@ -134,7 +166,7 @@ def main():
                     index=2,
                 )
 
-        ### Apply filters
+        ### Apply filters and repeats
         job_df = (
             jobs_df.loc[
                 (jobs_df["Job"] == selected_job) & (jobs_df["Year"] == selected_year),
@@ -144,6 +176,9 @@ def main():
             .drop_duplicates()
             .reset_index(drop=True)
         ).astype({"GDP_per_capita_USD": "float64"})
+
+        if weight_pop:
+            job_df = add_repeats(job_df, lowest_repeat, highest_repeat)
 
         ### Plot
         size = "Population" if show_pop else None
@@ -196,6 +231,10 @@ def main():
                 mime="text/csv",
             )
     with tab2:
+        ### Apply filters and repeats
+        if weight_pop:
+            forex_df = add_repeats(forex_df, lowest_repeat, highest_repeat)
+
         ### Plot
         size = "Population" if show_pop else None
         x_title, y_title = "GDP_per_capita_USD", "Forex_Reserves_per_person_USD"
@@ -267,15 +306,19 @@ def main():
         spend_col = "Change in Government Expenditure as % of GDP ({0} - {1})".format(
             spending_range[0], spending_range[1]
         )
-        growth_col = "Change in GDP per capita USD ({0} - {1})".format(
+        growth_col = "Percentage change in GDP per capita USD ({0} - {1})".format(
             growth_range[0], growth_range[1]
         )
         spending_df[spend_col] = spending_df.groupby(["Country"])[
             "Government Expenditure (IMF based on Mauro et al. (2015))"
         ].diff(spending_range[1] - spending_range[0])
-        spending_df[growth_col] = spending_df.groupby(["Country"])[
-            "GDP per capita, PPP (constant 2017 international $)"
-        ].diff(growth_range[1] - growth_range[0])
+
+        spending_df[growth_col] = (
+            spending_df.groupby(["Country"])[
+                "GDP per capita, PPP (constant 2017 international $)"
+            ].pct_change(periods=(growth_range[1] - growth_range[0]))
+            * 100
+        )
 
         spending_df = spending_df.loc[
             spending_df["Year"].isin([spending_range[1], growth_range[1]]), :
@@ -297,14 +340,18 @@ def main():
                     growth_col,
                 ]
             ).values[0]
-        # st.dataframe(spending_df)
+        filter_year = max(spending_range[1], growth_range[1])
+        spending_df = spending_df.loc[spending_df["Year"] == filter_year]
+
+        ### Add repeats
+        if weight_pop:
+            spending_df = add_repeats(spending_df, lowest_repeat, highest_repeat)
 
         ### Plot
         size = "Population" if show_pop else None
         x_title, y_title = spend_col, growth_col
-        filter_year = max(spending_range[1], growth_range[1])
         fig = px.scatter(
-            spending_df.loc[spending_df["Year"] == filter_year],
+            spending_df,
             x=x_title,
             y=y_title,
             color="Region",
