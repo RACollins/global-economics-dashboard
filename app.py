@@ -112,6 +112,11 @@ def main():
     jobs_df = get_jobs_df(root_dir_path)
     forex_df = get_forex_df(root_dir_path).astype({"GDP_per_capita_USD": "float64"})
     spending_df = get_spending_df(root_dir_path)
+    all_countries = (
+        pd.concat([spending_df["Country"], forex_df["Country"]])
+        .drop_duplicates()
+        .to_list()
+    )
 
     ### Side bar
     with st.sidebar:
@@ -133,13 +138,13 @@ def main():
         with st.container(border=True):
             display_countries = st.multiselect(
                 label="Country Labels",
-                options=sorted(forex_df["Country"].values),
+                options=sorted(all_countries),
                 placeholder="Add country labels to plots",
             )
         with st.container(border=True):
             remove_countries = st.multiselect(
                 label="Remove Countries",
-                options=sorted(forex_df["Country"].values),
+                options=sorted(all_countries),
                 placeholder="Remove countries from plots",
             )
 
