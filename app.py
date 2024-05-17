@@ -292,26 +292,52 @@ def main():
                     1986,
                     2011,
                     (1990, 2011),
-                    help="The difference in government expenditure between two years.",
+                    help="The average government expenditure (as a percentage of GDP) over the given time period.",
                 )
                 growth_range = st.slider(
                     "Growth Range",
                     1986,
                     2011,
                     (1990, 2011),
-                    help="The difference in GDP per capita between two years.",
+                    help="The percentage change in GDP per capita over the given time period.",
                 )
 
         ### Apply filters
-        spend_col = "Change in Government Expenditure as % of GDP ({0} - {1})".format(
+        spend_col = "Average Government Expenditure as % of GDP ({0} - {1})".format(
             spending_range[0], spending_range[1]
         )
         growth_col = "Percentage change in GDP per capita USD ({0} - {1})".format(
             growth_range[0], growth_range[1]
         )
-        spending_df[spend_col] = spending_df.groupby(["Country"])[
-            "Government Expenditure (IMF based on Mauro et al. (2015))"
-        ].diff(spending_range[1] - spending_range[0])
+
+        average_spend_df = (
+            (
+                spending_df.loc[
+                    spending_df["Year"].isin(
+                        list(range(spending_range[0], spending_range[1] + 1))
+                    ),
+                    :,
+                ]
+                .groupby(["Country"])[
+                    "Government Expenditure (IMF based on Mauro et al. (2015))"
+                ]
+                .mean()
+            )
+            .reset_index()
+            .rename(
+                columns={
+                    "Government Expenditure (IMF based on Mauro et al. (2015))": spend_col
+                }
+            )
+        )
+
+        spending_df = pd.merge(
+            left=spending_df,
+            right=average_spend_df,
+            left_on=["Country"],
+            right_on=["Country"],
+            how="outer",
+        )
 
         spending_df[growth_col] = (
             spending_df.groupby(["Country"])[
@@ -320,28 +346,8 @@ def main():
             * 100
         )
 
-        spending_df = spending_df.loc[
-            spending_df["Year"].isin([spending_range[1], growth_range[1]]), :
-        ]
-
-        all_countries = spending_df["Country"].unique()
-        for country in all_countries:
-            spending_df.loc[spending_df["Country"] == country, spend_col] = (
-                spending_df.loc[
-                    (spending_df["Country"] == country)
-                    & (spending_df["Year"] == spending_range[1]),
-                    spend_col,
-                ]
-            ).values[0]
-            spending_df.loc[spending_df["Country"] == country, growth_col] = (
-                spending_df.loc[
-                    (spending_df["Country"] == country)
-                    & (spending_df["Year"] == growth_range[1]),
-                    growth_col,
-                ]
-            ).values[0]
-        filter_year = max(spending_range[1], growth_range[1])
-        spending_df = spending_df.loc[spending_df["Year"] == filter_year]
+        ### Filter to most recent growth range year
+        spending_df = spending_df.loc[spending_df["Year"] == growth_range[1]]
 
         ### Add repeats
         if weight_pop:
@@ -367,7 +373,7 @@ def main():
             trendline_scope="overall",
             # trendline_options=dict(log_x=log_x, log_y=log_y),
             trendline_color_override="black",
-            title="Change in Government Spending as a Share of GDP vs. Change in GDP per capita",
+            title="Average Government Spending as a Share of GDP vs. Change in GDP per capita",
             log_x=log_x,
             log_y=log_y,
         )
