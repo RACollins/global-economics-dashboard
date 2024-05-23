@@ -50,7 +50,7 @@ def get_forex_df(root_dir_path):
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_spending_df(root_dir_path):
     df = pd.read_csv(root_dir_path + "/data/spending_vs_gdp_per_capita.csv").drop(
-        columns=["Unnamed: 0", "Code", "Continent"]
+        columns=["Unnamed: 0"]
     )
     return df
 
