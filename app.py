@@ -289,21 +289,21 @@ def main():
             )
     with tab3:
         ### Filters
-        left_years_buffer, centre_years_col, right_years_buffer = st.columns([2, 8, 2])
+        left_years_buffer, centre_years_col, right_years_buffer = st.columns([1, 10, 1])
         with centre_years_col:
             with st.container(border=True):
                 spending_range = st.slider(
                     "Spending Range",
-                    1986,
-                    2011,
-                    (1990, 2011),
+                    1850,
+                    2019,
+                    (2003, 2011),
                     help="The average government expenditure (as a percentage of GDP) over the given time period.",
                 )
                 growth_range = st.slider(
                     "Growth Range",
-                    1986,
-                    2011,
-                    (1990, 2011),
+                    1850,
+                    2019,
+                    (2003, 2011),
                     help="The percentage change in GDP per capita over the given time period.",
                 )
 
@@ -324,14 +324,14 @@ def main():
                     :,
                 ]
                 .groupby(["Country"])[
-                    "Government Expenditure (IMF based on Mauro et al. (2015))"
+                    "Government Expenditure (IMF & Wiki)"
                 ]
                 .mean()
             )
             .reset_index()
             .rename(
                 columns={
-                    "Government Expenditure (IMF based on Mauro et al. (2015))": spend_col
+                    "Government Expenditure (IMF & Wiki)": spend_col
                 }
             )
         )
@@ -346,7 +346,7 @@ def main():
 
         spending_df[growth_col] = (
             spending_df.groupby(["Country"])[
-                "GDP per capita, PPP (constant 2017 international $)"
+                "GDP per capita (OWiD)"
             ].pct_change(periods=(growth_range[1] - growth_range[0]))
             * 100
         )
