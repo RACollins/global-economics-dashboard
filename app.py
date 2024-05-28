@@ -49,8 +49,10 @@ def get_forex_df(root_dir_path):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_spending_df(root_dir_path):
-    df = pd.read_csv(root_dir_path + "/data/spending_vs_gdp_per_capita.csv").drop(
-        columns=["Unnamed: 0"]
+    df = (
+        pd.read_csv(root_dir_path + "/data/spending_vs_gdp_per_capita.csv")
+        .drop(columns=["Unnamed: 0"])
+        .sort_values(["Country", "Year"])
     )
     return df
 
@@ -336,7 +338,7 @@ def main():
                     1850,
                     2019,
                     (2003, 2011),
-                    help="The average government expenditure (as a percentage of GDP) over the given time period.",
+                    help="The average government expenditure, as a percentage of GDP, over the given time period.",
                 )
                 growth_range = st.slider(
                     "Growth Range",
@@ -403,6 +405,7 @@ def main():
                 mime="text/csv",
             )
 
+        st.divider()
         st.divider()
 
         ### Bottom Filters
@@ -530,7 +533,6 @@ def main():
                     mime="text/csv",
                 )
         elif selected_plot == "Heatmap":
-            # st.dataframe(px.data.tips())
             if weight_pop:
                 fig = px.density_heatmap(
                     all_subperiod_scatter_df,
@@ -547,7 +549,6 @@ def main():
                     y=y_title_no_brackets,
                     color_continuous_scale="Magma_r",
                 )
-            # fig = apply_graph_stylings(fig)
             fig = add_country_lables(
                 fig,
                 df=all_subperiod_scatter_df,
