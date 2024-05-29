@@ -49,8 +49,10 @@ def get_forex_df(root_dir_path):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_spending_df(root_dir_path):
-    df = pd.read_csv(root_dir_path + "/data/spending_vs_gdp_per_capita.csv").drop(
-        columns=["Unnamed: 0"]
+    df = (
+        pd.read_csv(root_dir_path + "/data/spending_vs_gdp_per_capita.csv")
+        .drop(columns=["Unnamed: 0"])
+        .sort_values(["Country", "Year"])
     )
     return df
 
@@ -99,6 +101,47 @@ def add_country_lables(fig, df, countries, x_title, y_title, log_x, log_y):
     return fig
 
 
+def transform_spending_df(df, spending_range, growth_range):
+    spend_col = "Average Government Expenditure as % of GDP ({0} - {1})".format(
+        spending_range[0], spending_range[1]
+    )
+    growth_col = "Percentage change in GDP per capita USD ({0} - {1})".format(
+        growth_range[0], growth_range[1]
+    )
+
+    average_spend_df = (
+        (
+            df.loc[
+                df["Year"].isin(list(range(spending_range[0], spending_range[1] + 1))),
+                :,
+            ]
+            .groupby(["Country"])["Government Expenditure (IMF & Wiki)"]
+            .mean()
+        )
+        .reset_index()
+        .rename(columns={"Government Expenditure (IMF & Wiki)": spend_col})
+    )
+
+    df = pd.merge(
+        left=df,
+        right=average_spend_df,
+        left_on=["Country"],
+        right_on=["Country"],
+        how="outer",
+    )
+
+    df[growth_col] = (
+        df.groupby(["Country"])["GDP per capita (OWiD)"].pct_change(
+            periods=(growth_range[1] - growth_range[0])
+        )
+        * 100
+    )
+
+    ### Filter to most recent growth range year
+    df = df.loc[df["Year"] == growth_range[1]]
+    return df, spend_col, growth_col
+
+
 ##################
 ### App proper ###
 ##################
@@ -142,11 +185,21 @@ def main():
                 placeholder="Add country labels to plots",
             )
         with st.container(border=True):
-            remove_countries = st.multiselect(
-                label="Remove Countries",
-                options=sorted(all_countries),
-                placeholder="Remove countries from plots",
-            )
+            remove_all_countries = st.checkbox("Remove All Countries")
+
+            if remove_all_countries:
+                remove_countries = st.multiselect(
+                    label="Remove Countries",
+                    options=sorted(all_countries),
+                    default=sorted(all_countries),
+                    placeholder="Remove countries from plots",
+                )
+            else:
+                remove_countries = st.multiselect(
+                    label="Remove Countries",
+                    options=sorted(all_countries),
+                    placeholder="Remove countries from plots",
+                )
 
     if remove_countries:
         jobs_df = jobs_df.loc[~jobs_df["Country"].isin(remove_countries), :]
@@ -201,10 +254,8 @@ def main():
             size=size,
             size_max=80,
             hover_data={"Country": True, "Population": True},
-            # text=display_countries,
             trendline="ols",
             trendline_scope="overall",
-            # trendline_options=dict(log_x=log_x, log_y=log_y),
             trendline_color_override="black",
             title="{0} pay of {1} VS. GDP per capita ({2})".format(
                 y_title.split("_")[0], selected_job, selected_year
@@ -255,10 +306,8 @@ def main():
             size=size,
             size_max=80,
             hover_data={"Country": True, "Population": True},
-            # text=display_countries,
             trendline="ols",
             trendline_scope="overall",
-            # trendline_options=dict(log_x=log_x, log_y=log_y),
             trendline_color_override="black",
             title="Forex Reserves Including Gold per Person VS. GDP per capita (2024)",
             log_x=log_x,
@@ -288,16 +337,19 @@ def main():
                 mime="text/csv",
             )
     with tab3:
-        ### Filters
-        left_years_buffer, centre_years_col, right_years_buffer = st.columns([1, 10, 1])
-        with centre_years_col:
+        st.markdown("##### Single Spending & Growth Period")
+        ### Top Filters
+        top_left_years_buffer, top_centre_years_col, top_right_years_buffer = (
+            st.columns([1, 10, 1])
+        )
+        with top_centre_years_col:
             with st.container(border=True):
                 spending_range = st.slider(
                     "Spending Range",
                     1850,
                     2019,
                     (2003, 2011),
-                    help="The average government expenditure (as a percentage of GDP) over the given time period.",
+                    help="The average government expenditure, as a percentage of GDP, over the given time period.",
                 )
                 growth_range = st.slider(
                     "Growth Range",
@@ -307,62 +359,22 @@ def main():
                     help="The percentage change in GDP per capita over the given time period.",
                 )
 
-        ### Apply filters
-        spend_col = "Average Government Expenditure as % of GDP ({0} - {1})".format(
-            spending_range[0], spending_range[1]
+        ### Apply filters and transform
+        transformed_spending_df, spend_col, growth_col = transform_spending_df(
+            df=spending_df, spending_range=spending_range, growth_range=growth_range
         )
-        growth_col = "Percentage change in GDP per capita USD ({0} - {1})".format(
-            growth_range[0], growth_range[1]
-        )
-
-        average_spend_df = (
-            (
-                spending_df.loc[
-                    spending_df["Year"].isin(
-                        list(range(spending_range[0], spending_range[1] + 1))
-                    ),
-                    :,
-                ]
-                .groupby(["Country"])[
-                    "Government Expenditure (IMF & Wiki)"
-                ]
-                .mean()
-            )
-            .reset_index()
-            .rename(
-                columns={
-                    "Government Expenditure (IMF & Wiki)": spend_col
-                }
-            )
-        )
-
-        spending_df = pd.merge(
-            left=spending_df,
-            right=average_spend_df,
-            left_on=["Country"],
-            right_on=["Country"],
-            how="outer",
-        )
-
-        spending_df[growth_col] = (
-            spending_df.groupby(["Country"])[
-                "GDP per capita (OWiD)"
-            ].pct_change(periods=(growth_range[1] - growth_range[0]))
-            * 100
-        )
-
-        ### Filter to most recent growth range year
-        spending_df = spending_df.loc[spending_df["Year"] == growth_range[1]]
 
         ### Add repeats
         if weight_pop:
-            spending_df = add_repeats(spending_df, lowest_repeat, highest_repeat)
+            transformed_spending_df = add_repeats(
+                transformed_spending_df, lowest_repeat, highest_repeat
+            )
 
         ### Plot
         size = "Population" if show_pop else None
         x_title, y_title = spend_col, growth_col
         fig = px.scatter(
-            spending_df,
+            transformed_spending_df,
             x=x_title,
             y=y_title,
             color="Region",
@@ -373,10 +385,8 @@ def main():
             size=size,
             size_max=80,
             hover_data={"Country": True, "Population": True},
-            # text=display_countries,
             trendline="ols",
             trendline_scope="overall",
-            # trendline_options=dict(log_x=log_x, log_y=log_y),
             trendline_color_override="black",
             title="Average Government Spending as a Share of GDP vs. Change in GDP per capita",
             log_x=log_x,
@@ -385,7 +395,7 @@ def main():
         fig = apply_graph_stylings(fig)
         fig = add_country_lables(
             fig,
-            df=spending_df,
+            df=transformed_spending_df,
             countries=display_countries,
             x_title=x_title,
             y_title=y_title,
@@ -397,7 +407,7 @@ def main():
             ### Download as CSV
             dwnld_csv_btn = st.download_button(
                 label="Download as CSV",
-                data=spending_df.loc[
+                data=transformed_spending_df.loc[
                     :, ["Country", "Region", "Population", x_title, y_title]
                 ]
                 .to_csv(index=True, header=True)
@@ -405,6 +415,179 @@ def main():
                 file_name="{0}_vs_{1}.csv".format(x_title, y_title),
                 mime="text/csv",
             )
+
+        st.divider()
+        st.divider()
+        st.markdown("##### Multiple Spending & Growth Periods")
+
+        ### Bottom Filters
+        btm_left_years_buffer, btm_centre_years_col, btm_right_years_buffer = (
+            st.columns([1, 10, 1])
+        )
+        with btm_centre_years_col:
+            with st.container(border=True):
+                long_range = st.slider(
+                    "Long-Term Spending and Growth Range",
+                    1850,
+                    2019,
+                    (2003, 2011),
+                    help="The range over which multiple 'Spending & Growth' data will be calculated.",
+                )
+                sub_period = st.number_input(
+                    "Spending and Growth Subperiod (years)",
+                    value=5,
+                    step=1,
+                    min_value=1,
+                    max_value=169,
+                    help="The length of time over which a single 'Spending & Growth' datum will be calculated.",
+                )
+                nPeriods = long_range[1] - (long_range[0] + sub_period) + 1
+                if nPeriods < 0:
+                    st.error(
+                        body="'Subperiod' is larger than 'Long-Term Spending and Growth Range'",
+                        icon="⚠️",
+                    )
+                else:
+                    st.write("Number of Subperiods: {}".format(nPeriods))
+
+        ### Generate "scatter" data
+        x_title_no_brackets = "Average Government Expenditure as % of GDP"
+        y_title_no_brackets = "Percentage change in GDP per capita USD"
+        all_subperiod_df_list = []
+        for p in range(nPeriods):
+            sg_range = (long_range[0] + p, long_range[0] + p + sub_period)
+            subperiod_df, spend_col, growth_col = transform_spending_df(
+                df=spending_df, spending_range=sg_range, growth_range=sg_range
+            )
+            subperiod_df = subperiod_df.loc[
+                :, ["Country", "Region", "Population", spend_col, growth_col]
+            ].rename(
+                columns={
+                    spend_col: x_title_no_brackets,
+                    growth_col: y_title_no_brackets,
+                }
+            )
+            subperiod_df["start_year"] = sg_range[0]
+            subperiod_df["end_year"] = sg_range[1]
+            all_subperiod_df_list.append(subperiod_df)
+        all_subperiod_df = pd.concat(all_subperiod_df_list).reset_index(
+            drop=True
+        )
+
+        selected_plot = st.selectbox(
+            label="Plot Type",
+            options=["Scatter", "Heatmap"],
+            index=0,
+        )
+
+        if selected_plot == "Scatter":
+            ### Add repeats
+            if weight_pop:
+                all_subperiod_df = add_repeats(
+                    all_subperiod_df, lowest_repeat, highest_repeat
+                )
+
+            ### Plot scatter
+            fig = px.scatter(
+                all_subperiod_df,
+                x=x_title_no_brackets,
+                y=y_title_no_brackets,
+                color="Region",
+                color_discrete_sequence=[
+                    "red",
+                    "magenta",
+                    "goldenrod",
+                    "green",
+                    "blue",
+                ],
+                category_orders={
+                    "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+                },
+                size=size,
+                size_max=80,
+                opacity=0.2,
+                hover_data={
+                    "Country": True,
+                    "Population": True,
+                    "start_year": True,
+                    "end_year": True,
+                },
+                trendline="ols",
+                trendline_scope="overall",
+                trendline_color_override="black",
+                title="Average Government Spending as a Share of GDP vs. Change in GDP per capita",
+                log_x=log_x,
+                log_y=log_y,
+            )
+            fig = apply_graph_stylings(fig)
+            fig = add_country_lables(
+                fig,
+                df=all_subperiod_df,
+                countries=display_countries,
+                x_title=x_title_no_brackets,
+                y_title=y_title_no_brackets,
+                log_x=log_x,
+                log_y=log_y,
+            )
+            with st.container(border=True):
+                st.plotly_chart(fig, theme=None, use_container_width=True)
+                ### Download as CSV
+                dwnld_csv_btn = st.download_button(
+                    label="Download as CSV",
+                    data=all_subperiod_df.to_csv(
+                        index=True, header=True
+                    ).encode("utf-8"),
+                    file_name="{0}_vs_{1}.csv".format(
+                        x_title_no_brackets, y_title_no_brackets
+                    ),
+                    mime="text/csv",
+                )
+        elif selected_plot == "Heatmap":
+            if weight_pop:
+                fig = px.density_heatmap(
+                    all_subperiod_df,
+                    x=x_title_no_brackets,
+                    y=y_title_no_brackets,
+                    z="Population",
+                    range_x=[0, 101],
+                    histfunc="sum",
+                    color_continuous_scale="Hot_r",
+                )
+            else:
+                fig = px.density_heatmap(
+                    all_subperiod_df,
+                    x=x_title_no_brackets,
+                    y=y_title_no_brackets,
+                    range_x=[0, 101],
+                    color_continuous_scale="Hot_r",
+                )
+            ### May implement bin sizes
+            # fig.update_traces(
+            #    xbins=dict(start=0.0, end=100.0, size=5),
+            #    ybins=dict(start=-60.0, end=100.0, size=5),
+            # )
+            fig = add_country_lables(
+                fig,
+                df=all_subperiod_df,
+                countries=display_countries,
+                x_title=x_title_no_brackets,
+                y_title=y_title_no_brackets,
+                log_x=log_x,
+                log_y=log_y,
+            )
+            with st.container(border=True):
+                st.plotly_chart(fig, theme=None, use_container_width=True)
+                ### Download as CSV
+                dwnld_csv_btn = st.download_button(
+                    label="Download as CSV",
+                    data=all_subperiod_df.to_csv(
+                        index=True, header=True
+                    ).encode("utf-8"),
+                    file_name="{0}_vs_{1}.csv".format(
+                        x_title_no_brackets, y_title_no_brackets
+                    ),
+                    mime="text/csv",
+                )
 
 
 if __name__ == "__main__":
