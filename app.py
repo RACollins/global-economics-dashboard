@@ -185,11 +185,21 @@ def main():
                 placeholder="Add country labels to plots",
             )
         with st.container(border=True):
-            remove_countries = st.multiselect(
-                label="Remove Countries",
-                options=sorted(all_countries),
-                placeholder="Remove countries from plots",
-            )
+            remove_all_countries = st.checkbox("Remove All Countries")
+
+            if remove_all_countries:
+                remove_countries = st.multiselect(
+                    label="Remove Countries",
+                    options=sorted(all_countries),
+                    default=sorted(all_countries),
+                    placeholder="Remove countries from plots",
+                )
+            else:
+                remove_countries = st.multiselect(
+                    label="Remove Countries",
+                    options=sorted(all_countries),
+                    placeholder="Remove countries from plots",
+                )
 
     if remove_countries:
         jobs_df = jobs_df.loc[~jobs_df["Country"].isin(remove_countries), :]
@@ -327,6 +337,7 @@ def main():
                 mime="text/csv",
             )
     with tab3:
+        st.markdown("##### Single Spending & Growth Period")
         ### Top Filters
         top_left_years_buffer, top_centre_years_col, top_right_years_buffer = (
             st.columns([1, 10, 1])
@@ -407,6 +418,7 @@ def main():
 
         st.divider()
         st.divider()
+        st.markdown("##### Multiple Spending & Growth Periods")
 
         ### Bottom Filters
         btm_left_years_buffer, btm_centre_years_col, btm_right_years_buffer = (
@@ -418,21 +430,21 @@ def main():
                     "Long-Term Spending and Growth Range",
                     1850,
                     2019,
-                    (1900, 2011),
-                    help="Placeholder",
+                    (2003, 2011),
+                    help="The range over which multiple 'Spending & Growth' data will be calculated.",
                 )
                 sub_period = st.number_input(
-                    "Spending and Growth Subperiod",
-                    value=10,
+                    "Spending and Growth Subperiod (years)",
+                    value=5,
                     step=1,
                     min_value=1,
-                    max_value=25,
-                    help="Placeholder",
+                    max_value=169,
+                    help="The length of time over which a single 'Spending & Growth' datum will be calculated.",
                 )
                 nPeriods = long_range[1] - (long_range[0] + sub_period) + 1
                 if nPeriods < 0:
                     st.error(
-                        body="Please decrease 'Subperiod' or increase 'Long-Term Spending and Growth Range'",
+                        body="'Subperiod' is larger than 'Long-Term Spending and Growth Range'",
                         icon="⚠️",
                     )
                 else:
@@ -458,11 +470,9 @@ def main():
             subperiod_df["start_year"] = sg_range[0]
             subperiod_df["end_year"] = sg_range[1]
             all_subperiod_df_list.append(subperiod_df)
-        all_subperiod_scatter_df = pd.concat(all_subperiod_df_list).reset_index(
+        all_subperiod_df = pd.concat(all_subperiod_df_list).reset_index(
             drop=True
         )
-
-        ### Generate "Heatmap" data
 
         selected_plot = st.selectbox(
             label="Plot Type",
@@ -473,13 +483,13 @@ def main():
         if selected_plot == "Scatter":
             ### Add repeats
             if weight_pop:
-                all_subperiod_scatter_df = add_repeats(
-                    all_subperiod_scatter_df, lowest_repeat, highest_repeat
+                all_subperiod_df = add_repeats(
+                    all_subperiod_df, lowest_repeat, highest_repeat
                 )
 
             ### Plot scatter
             fig = px.scatter(
-                all_subperiod_scatter_df,
+                all_subperiod_df,
                 x=x_title_no_brackets,
                 y=y_title_no_brackets,
                 color="Region",
@@ -512,7 +522,7 @@ def main():
             fig = apply_graph_stylings(fig)
             fig = add_country_lables(
                 fig,
-                df=all_subperiod_scatter_df,
+                df=all_subperiod_df,
                 countries=display_countries,
                 x_title=x_title_no_brackets,
                 y_title=y_title_no_brackets,
@@ -524,7 +534,7 @@ def main():
                 ### Download as CSV
                 dwnld_csv_btn = st.download_button(
                     label="Download as CSV",
-                    data=all_subperiod_scatter_df.to_csv(
+                    data=all_subperiod_df.to_csv(
                         index=True, header=True
                     ).encode("utf-8"),
                     file_name="{0}_vs_{1}.csv".format(
@@ -535,23 +545,30 @@ def main():
         elif selected_plot == "Heatmap":
             if weight_pop:
                 fig = px.density_heatmap(
-                    all_subperiod_scatter_df,
+                    all_subperiod_df,
                     x=x_title_no_brackets,
                     y=y_title_no_brackets,
                     z="Population",
+                    range_x=[0, 101],
                     histfunc="sum",
-                    color_continuous_scale="Magma_r",
+                    color_continuous_scale="Hot_r",
                 )
             else:
                 fig = px.density_heatmap(
-                    all_subperiod_scatter_df,
+                    all_subperiod_df,
                     x=x_title_no_brackets,
                     y=y_title_no_brackets,
-                    color_continuous_scale="Magma_r",
+                    range_x=[0, 101],
+                    color_continuous_scale="Hot_r",
                 )
+            ### May implement bin sizes
+            # fig.update_traces(
+            #    xbins=dict(start=0.0, end=100.0, size=5),
+            #    ybins=dict(start=-60.0, end=100.0, size=5),
+            # )
             fig = add_country_lables(
                 fig,
-                df=all_subperiod_scatter_df,
+                df=all_subperiod_df,
                 countries=display_countries,
                 x_title=x_title_no_brackets,
                 y_title=y_title_no_brackets,
@@ -563,7 +580,7 @@ def main():
                 ### Download as CSV
                 dwnld_csv_btn = st.download_button(
                     label="Download as CSV",
-                    data=all_subperiod_scatter_df.to_csv(
+                    data=all_subperiod_df.to_csv(
                         index=True, header=True
                     ).encode("utf-8"),
                     file_name="{0}_vs_{1}.csv".format(
