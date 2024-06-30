@@ -105,7 +105,7 @@ def transform_spending_df(df, spending_range, growth_range):
     spend_col = "Average Government Expenditure as % of GDP ({0} - {1})".format(
         spending_range[0], spending_range[1]
     )
-    growth_col = "Percentage change in GDP per capita USD ({0} - {1})".format(
+    growth_col = "Average percentage change in GDP per capita USD ({0} - {1})".format(
         growth_range[0], growth_range[1]
     )
 
@@ -130,12 +130,9 @@ def transform_spending_df(df, spending_range, growth_range):
         how="outer",
     )
 
-    df[growth_col] = (
-        df.groupby(["Country"])["GDP per capita (OWiD)"].pct_change(
-            periods=(growth_range[1] - growth_range[0])
-        )
-        * 100
-    )
+    df[growth_col] = df.groupby(["Country"])["GDP per capita (OWiD)"].pct_change(
+        periods=(growth_range[1] - growth_range[0])
+    ) * (100 / (growth_range[1] - growth_range[0]))
 
     ### Filter to most recent growth range year
     df = df.loc[df["Year"] == growth_range[1]]
@@ -356,7 +353,7 @@ def main():
                     1850,
                     2019,
                     (2003, 2011),
-                    help="The percentage change in GDP per capita over the given time period.",
+                    help="The average percentage change in GDP per capita over the given time period.",
                 )
 
         ### Apply filters and transform
@@ -388,7 +385,7 @@ def main():
             trendline="ols",
             trendline_scope="overall",
             trendline_color_override="black",
-            title="Average Government Spending as a Share of GDP vs. Change in GDP per capita",
+            title="Average Government Spending as a Share of GDP vs. Average change in GDP per capita",
             log_x=log_x,
             log_y=log_y,
         )
@@ -452,7 +449,7 @@ def main():
 
         ### Generate "scatter" data
         x_title_no_brackets = "Average Government Expenditure as % of GDP"
-        y_title_no_brackets = "Percentage change in GDP per capita USD"
+        y_title_no_brackets = "Average percentage change in GDP per capita USD"
         all_subperiod_df_list = []
         for p in range(nPeriods):
             sg_range = (long_range[0] + p, long_range[0] + p + sub_period)
@@ -470,9 +467,7 @@ def main():
             subperiod_df["start_year"] = sg_range[0]
             subperiod_df["end_year"] = sg_range[1]
             all_subperiod_df_list.append(subperiod_df)
-        all_subperiod_df = pd.concat(all_subperiod_df_list).reset_index(
-            drop=True
-        )
+        all_subperiod_df = pd.concat(all_subperiod_df_list).reset_index(drop=True)
 
         selected_plot = st.selectbox(
             label="Plot Type",
@@ -515,7 +510,7 @@ def main():
                 trendline="ols",
                 trendline_scope="overall",
                 trendline_color_override="black",
-                title="Average Government Spending as a Share of GDP vs. Change in GDP per capita",
+                title="Average Government Spending as a Share of GDP vs. Average change in GDP per capita",
                 log_x=log_x,
                 log_y=log_y,
             )
@@ -534,9 +529,9 @@ def main():
                 ### Download as CSV
                 dwnld_csv_btn = st.download_button(
                     label="Download as CSV",
-                    data=all_subperiod_df.to_csv(
-                        index=True, header=True
-                    ).encode("utf-8"),
+                    data=all_subperiod_df.to_csv(index=True, header=True).encode(
+                        "utf-8"
+                    ),
                     file_name="{0}_vs_{1}.csv".format(
                         x_title_no_brackets, y_title_no_brackets
                     ),
@@ -580,9 +575,9 @@ def main():
                 ### Download as CSV
                 dwnld_csv_btn = st.download_button(
                     label="Download as CSV",
-                    data=all_subperiod_df.to_csv(
-                        index=True, header=True
-                    ).encode("utf-8"),
+                    data=all_subperiod_df.to_csv(index=True, header=True).encode(
+                        "utf-8"
+                    ),
                     file_name="{0}_vs_{1}.csv".format(
                         x_title_no_brackets, y_title_no_brackets
                     ),
