@@ -50,7 +50,7 @@ def get_forex_df(root_dir_path):
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_spending_df(root_dir_path):
     df = (
-        pd.read_csv(root_dir_path + "/data/spending_vs_gdp_per_capita.csv")
+        pd.read_csv(root_dir_path + "/data/spending_vs_gdp_per_capita_plus_regions.csv")
         .drop(columns=["Unnamed: 0"])
         .sort_values(["Country", "Year"])
     )
@@ -334,87 +334,6 @@ def main():
                 mime="text/csv",
             )
     with tab3:
-        st.markdown("##### Single Spending & Growth Period")
-        ### Top Filters
-        top_left_years_buffer, top_centre_years_col, top_right_years_buffer = (
-            st.columns([1, 10, 1])
-        )
-        with top_centre_years_col:
-            with st.container(border=True):
-                spending_range = st.slider(
-                    "Spending Range",
-                    1850,
-                    2019,
-                    (2003, 2011),
-                    help="The average government expenditure, as a percentage of GDP, over the given time period.",
-                )
-                growth_range = st.slider(
-                    "Growth Range",
-                    1850,
-                    2019,
-                    (2003, 2011),
-                    help="The average percentage change in GDP per capita over the given time period.",
-                )
-
-        ### Apply filters and transform
-        transformed_spending_df, spend_col, growth_col = transform_spending_df(
-            df=spending_df, spending_range=spending_range, growth_range=growth_range
-        )
-
-        ### Add repeats
-        if weight_pop:
-            transformed_spending_df = add_repeats(
-                transformed_spending_df, lowest_repeat, highest_repeat
-            )
-
-        ### Plot
-        size = "Population" if show_pop else None
-        x_title, y_title = spend_col, growth_col
-        fig = px.scatter(
-            transformed_spending_df,
-            x=x_title,
-            y=y_title,
-            color="Region",
-            color_discrete_sequence=["red", "magenta", "goldenrod", "green", "blue"],
-            category_orders={
-                "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
-            },
-            size=size,
-            size_max=80,
-            hover_data={"Country": True, "Population": True},
-            trendline="ols",
-            trendline_scope="overall",
-            trendline_color_override="black",
-            title="Average Government Spending as a Share of GDP vs. Average change in GDP per capita",
-            log_x=log_x,
-            log_y=log_y,
-        )
-        fig = apply_graph_stylings(fig)
-        fig = add_country_lables(
-            fig,
-            df=transformed_spending_df,
-            countries=display_countries,
-            x_title=x_title,
-            y_title=y_title,
-            log_x=log_x,
-            log_y=log_y,
-        )
-        with st.container(border=True):
-            st.plotly_chart(fig, theme=None, use_container_width=True)
-            ### Download as CSV
-            dwnld_csv_btn = st.download_button(
-                label="Download as CSV",
-                data=transformed_spending_df.loc[
-                    :, ["Country", "Region", "Population", x_title, y_title]
-                ]
-                .to_csv(index=True, header=True)
-                .encode("utf-8"),
-                file_name="{0}_vs_{1}.csv".format(x_title, y_title),
-                mime="text/csv",
-            )
-
-        st.divider()
-        st.divider()
         st.markdown("##### Multiple Spending & Growth Periods")
 
         ### Bottom Filters
@@ -581,6 +500,93 @@ def main():
                     file_name="{0}_vs_{1}.csv".format(
                         x_title_no_brackets, y_title_no_brackets
                     ),
+                    mime="text/csv",
+                )
+        st.divider()
+        st.divider()
+        st.markdown("##### Single Spending & Growth Period")
+        with st.expander("Show Graph"):
+            ### Top Filters
+            top_left_years_buffer, top_centre_years_col, top_right_years_buffer = (
+                st.columns([1, 10, 1])
+            )
+            with top_centre_years_col:
+                with st.container(border=True):
+                    spending_range = st.slider(
+                        "Spending Range",
+                        1850,
+                        2019,
+                        (2003, 2011),
+                        help="The average government expenditure, as a percentage of GDP, over the given time period.",
+                    )
+                    growth_range = st.slider(
+                        "Growth Range",
+                        1850,
+                        2019,
+                        (2003, 2011),
+                        help="The average percentage change in GDP per capita over the given time period.",
+                    )
+
+            ### Apply filters and transform
+            transformed_spending_df, spend_col, growth_col = transform_spending_df(
+                df=spending_df, spending_range=spending_range, growth_range=growth_range
+            )
+
+            ### Add repeats
+            if weight_pop:
+                transformed_spending_df = add_repeats(
+                    transformed_spending_df, lowest_repeat, highest_repeat
+                )
+
+            ### Plot
+            size = "Population" if show_pop else None
+            x_title, y_title = spend_col, growth_col
+            fig = px.scatter(
+                transformed_spending_df,
+                x=x_title,
+                y=y_title,
+                color="Region",
+                color_discrete_sequence=[
+                    "red",
+                    "magenta",
+                    "goldenrod",
+                    "green",
+                    "blue",
+                ],
+                category_orders={
+                    "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+                },
+                size=size,
+                size_max=80,
+                hover_data={"Country": True, "Population": True},
+                trendline="ols",
+                trendline_scope="overall",
+                trendline_color_override="black",
+                title="Average Government Spending as a Share of GDP vs. Average change in GDP per capita",
+                log_x=log_x,
+                log_y=log_y,
+            )
+            fig = apply_graph_stylings(fig)
+            fig = add_country_lables(
+                fig,
+                df=transformed_spending_df,
+                countries=display_countries,
+                x_title=x_title,
+                y_title=y_title,
+                log_x=log_x,
+                log_y=log_y,
+            )
+            with st.container(border=True):
+                st.plotly_chart(fig, theme=None, use_container_width=True)
+                ### Download as CSV
+                dwnld_csv_btn = st.download_button(
+                    label="Download as CSV",
+                    data=transformed_spending_df.loc[
+                        :, ["Country", "Region", "Population", x_title, y_title]
+                    ]
+                    .to_csv(index=True, header=True)
+                    .encode("utf-8"),
+                    file_name="{0}_vs_{1}.csv".format(x_title, y_title),
                     mime="text/csv",
                 )
 
