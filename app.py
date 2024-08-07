@@ -262,10 +262,10 @@ def main():
             all_subperiod_df_list.append(subperiod_df)
         all_subperiod_df = pd.concat(all_subperiod_df_list).reset_index(drop=True)
 
-        """ ### Display
-        st.dataframe(spending_df)
+        ### Display
+        # st.dataframe(spending_df)
 
-        st.dataframe(all_subperiod_df) """
+        # st.dataframe(all_subperiod_df)
 
         selected_plot = st.selectbox(
             label="Plot Type",
