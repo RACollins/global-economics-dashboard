@@ -263,9 +263,46 @@ def main():
         all_subperiod_df = pd.concat(all_subperiod_df_list).reset_index(drop=True)
 
         ### Display
-        # st.dataframe(spending_df)
-
-        # st.dataframe(all_subperiod_df)
+        st.dataframe(spending_df)
+        fig = (
+            px.line(
+                spending_df.loc[spending_df["Region"] == "Oceania", :],
+                x="Year",
+                y="GDP per capita (OWiD)",
+                color="Region",
+                color_discrete_sequence=[
+                    "red",
+                    "magenta",
+                    "goldenrod",
+                    "green",
+                    "blue",
+                ],
+                category_orders={
+                    "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+                },
+                hover_data={
+                    "Country": True,
+                    "Population": True,
+                },
+                title="placeholder",
+                log_x=log_x,
+                log_y=log_y,
+            )
+            .update_traces(line={"width": 0.5}, mode="lines")
+            .update_xaxes(
+                rangeslider_visible=True,
+                range=[
+                    1850,
+                    2020,
+                ],
+            )
+            .update_layout(showlegend=True, hovermode="x unified")
+        )
+        fig = apply_graph_stylings(fig)
+        st.plotly_chart(
+            fig, theme=None, use_container_width=True, on_select="rerun"
+        )
+        st.dataframe(all_subperiod_df)
 
         selected_plot = st.selectbox(
             label="Plot Type",
