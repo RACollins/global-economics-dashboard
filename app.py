@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import os
 
 root_dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -263,46 +264,68 @@ def main():
         all_subperiod_df = pd.concat(all_subperiod_df_list).reset_index(drop=True)
 
         ### Display
-        st.dataframe(spending_df)
-        fig = (
-            px.line(
-                spending_df.loc[spending_df["Region"] == "Oceania", :],
-                x="Year",
-                y="GDP per capita (OWiD)",
-                color="Region",
-                color_discrete_sequence=[
-                    "red",
-                    "magenta",
-                    "goldenrod",
-                    "green",
-                    "blue",
-                ],
-                category_orders={
-                    "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
-                },
-                hover_data={
-                    "Country": True,
-                    "Population": True,
-                },
-                title="placeholder",
-                log_x=log_x,
-                log_y=log_y,
+        fig = go.Figure(
+            go.Scatter(
+                x=pd.Series(dtype=object),
+                y=pd.Series(dtype=object),
+                mode="lines",
             )
-            .update_traces(line={"width": 0.5}, mode="lines")
-            .update_xaxes(
-                rangeslider_visible=True,
-                range=[
-                    1850,
-                    2020,
-                ],
-            )
-            .update_layout(showlegend=True, hovermode="x unified")
         )
+        for country in spending_df["Country"].unique():
+            filtered_df = spending_df.loc[spending_df["Country"] == country, :]
+            fig.add_trace(
+                px.line(
+                    filtered_df,
+                    x="Year",
+                    y="GDP per capita (OWiD)",
+                    color="Region",
+                    color_discrete_sequence=[
+                        "red",
+                        "magenta",
+                        "goldenrod",
+                        "green",
+                        "blue",
+                    ],
+                    category_orders={
+                        "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+                    },
+                    hover_data={
+                        "Country": True,
+                        "Population": True,
+                    },
+                    title="placeholder",
+                ).data[0]
+            )
+        fig.update_traces(
+            line=dict(
+                width=1.0,
+            )
+        )
+        fig.update_xaxes(type="log" if log_x else "linear")
+        fig.update_yaxes(type="log" if log_y else "linear")
+        fig.add_vline(
+                x=long_range[0],
+                line_width=1.5,
+                line_dash="dash",
+                line_color="red",
+            )
+        fig.add_vline(
+                x=long_range[1],
+                line_width=1.5,
+                line_dash="dash",
+                line_color="red",
+            )
+        seen_regions = set()
+        fig.for_each_trace(
+            lambda trace: (
+                trace.update(showlegend=False)
+                if (trace.name in seen_regions)
+                else seen_regions.add(trace.name)
+            )
+        )
+
         fig = apply_graph_stylings(fig)
-        st.plotly_chart(
-            fig, theme=None, use_container_width=True, on_select="rerun"
-        )
-        st.dataframe(all_subperiod_df)
+        st.plotly_chart(fig, theme=None, use_container_width=True)
 
         selected_plot = st.selectbox(
             label="Plot Type",
