@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.subplots as sp
 import os
 
 root_dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -241,36 +242,8 @@ def main():
                 else:
                     st.write("Number of Subperiods: {}".format(nPeriods))
 
-        ### Generate "scatter" data
-        x_title_no_brackets = "Average Government Expenditure as % of GDP"
-        y_title_no_brackets = "Average percentage change in GDP per capita USD"
-        all_subperiod_df_list = []
-        for p in range(nPeriods):
-            sg_range = (long_range[0] + p, long_range[0] + p + sub_period)
-            subperiod_df, spend_col, growth_col = transform_spending_df(
-                df=spending_df, spending_range=sg_range, growth_range=sg_range
-            )
-            subperiod_df = subperiod_df.loc[
-                :, ["Country", "Region", "Population", spend_col, growth_col]
-            ].rename(
-                columns={
-                    spend_col: x_title_no_brackets,
-                    growth_col: y_title_no_brackets,
-                }
-            )
-            subperiod_df["start_year"] = sg_range[0]
-            subperiod_df["end_year"] = sg_range[1]
-            all_subperiod_df_list.append(subperiod_df)
-        all_subperiod_df = pd.concat(all_subperiod_df_list).reset_index(drop=True)
-
-        ### Display
-        fig = go.Figure(
-            go.Scatter(
-                x=pd.Series(dtype=object),
-                y=pd.Series(dtype=object),
-                mode="lines",
-            )
-        )
+        ### Display line graphs
+        fig = sp.make_subplots(rows=2, cols=1, shared_xaxes=True)
         for country in spending_df["Country"].unique():
             filtered_df = spending_df.loc[spending_df["Country"] == country, :]
             fig.add_trace(
@@ -294,7 +267,34 @@ def main():
                         "Population": True,
                     },
                     title="placeholder",
-                ).data[0]
+                ).data[0],
+                row=1,
+                col=1,
+            )
+            fig.add_trace(
+                px.line(
+                    filtered_df,
+                    x="Year",
+                    y="Government Expenditure (IMF & Wiki)",
+                    color="Region",
+                    color_discrete_sequence=[
+                        "red",
+                        "magenta",
+                        "goldenrod",
+                        "green",
+                        "blue",
+                    ],
+                    category_orders={
+                        "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+                    },
+                    hover_data={
+                        "Country": True,
+                        "Population": True,
+                    },
+                    title="placeholder",
+                ).data[0],
+                row=2,
+                col=1,
             )
         fig.update_traces(
             line=dict(
@@ -304,17 +304,17 @@ def main():
         fig.update_xaxes(type="log" if log_x else "linear")
         fig.update_yaxes(type="log" if log_y else "linear")
         fig.add_vline(
-                x=long_range[0],
-                line_width=1.5,
-                line_dash="dash",
-                line_color="red",
-            )
+            x=long_range[0],
+            line_width=1.5,
+            line_dash="dash",
+            line_color="red",
+        )
         fig.add_vline(
-                x=long_range[1],
-                line_width=1.5,
-                line_dash="dash",
-                line_color="red",
-            )
+            x=long_range[1],
+            line_width=1.5,
+            line_dash="dash",
+            line_color="red",
+        )
         seen_regions = set()
         fig.for_each_trace(
             lambda trace: (
@@ -327,12 +327,35 @@ def main():
         fig = apply_graph_stylings(fig)
         st.plotly_chart(fig, theme=None, use_container_width=True)
 
+        ### Generate "scatter" data
+        x_title_no_brackets = "Average Government Expenditure as % of GDP"
+        y_title_no_brackets = "Average percentage change in GDP per capita USD"
+        all_subperiod_df_list = []
+        for p in range(nPeriods):
+            sg_range = (long_range[0] + p, long_range[0] + p + sub_period)
+            subperiod_df, spend_col, growth_col = transform_spending_df(
+                df=spending_df, spending_range=sg_range, growth_range=sg_range
+            )
+            subperiod_df = subperiod_df.loc[
+                :, ["Country", "Region", "Population", spend_col, growth_col]
+            ].rename(
+                columns={
+                    spend_col: x_title_no_brackets,
+                    growth_col: y_title_no_brackets,
+                }
+            )
+            subperiod_df["start_year"] = sg_range[0]
+            subperiod_df["end_year"] = sg_range[1]
+            all_subperiod_df_list.append(subperiod_df)
+        all_subperiod_df = pd.concat(all_subperiod_df_list).reset_index(drop=True)
+
         selected_plot = st.selectbox(
             label="Plot Type",
             options=["Scatter", "Heatmap"],
             index=0,
         )
 
+        ### Plot scatter/heatmap
         if selected_plot == "Scatter":
             ### Add repeats
             if weight_pop:
