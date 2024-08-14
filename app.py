@@ -59,6 +59,70 @@ def get_spending_df(root_dir_path):
     return df
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def make_line_plots(df):
+    fig = sp.make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02)
+    for country in df["Country"].unique():
+        filtered_df = df.loc[df["Country"] == country, :]
+        fig.add_trace(
+            px.line(
+                filtered_df,
+                x="Year",
+                y="GDP per capita (OWiD)",
+                color="Region",
+                color_discrete_sequence=[
+                    "red",
+                    "magenta",
+                    "goldenrod",
+                    "green",
+                    "blue",
+                ],
+                category_orders={
+                    "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+                },
+                hover_data={
+                    "Country": True,
+                    "Population": True,
+                },
+            ).data[0],
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            px.line(
+                filtered_df,
+                x="Year",
+                y="Government Expenditure (IMF & Wiki)",
+                color="Region",
+                color_discrete_sequence=[
+                    "red",
+                    "magenta",
+                    "goldenrod",
+                    "green",
+                    "blue",
+                ],
+                category_orders={
+                    "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+                },
+                hover_data={
+                    "Country": True,
+                    "Population": True,
+                },
+            ).data[0],
+            row=2,
+            col=1,
+        )
+    seen_regions = set()
+    fig.for_each_trace(
+        lambda trace: (
+            trace.update(showlegend=False)
+            if (trace.name in seen_regions)
+            else seen_regions.add(trace.name)
+        )
+    )
+    return fig
+
+
 def apply_graph_stylings(fig):
     fig.update_traces(textposition="top center")
     fig.update_layout(plot_bgcolor="white")
@@ -243,66 +307,29 @@ def main():
                     st.write("Number of Subperiods: {}".format(nPeriods))
 
         ### Display line graphs
-        fig = sp.make_subplots(rows=2, cols=1, shared_xaxes=True)
-        for country in spending_df["Country"].unique():
-            filtered_df = spending_df.loc[spending_df["Country"] == country, :]
-            fig.add_trace(
-                px.line(
-                    filtered_df,
-                    x="Year",
-                    y="GDP per capita (OWiD)",
-                    color="Region",
-                    color_discrete_sequence=[
-                        "red",
-                        "magenta",
-                        "goldenrod",
-                        "green",
-                        "blue",
-                    ],
-                    category_orders={
-                        "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
-                    },
-                    hover_data={
-                        "Country": True,
-                        "Population": True,
-                    },
-                    title="placeholder",
-                ).data[0],
-                row=1,
-                col=1,
-            )
-            fig.add_trace(
-                px.line(
-                    filtered_df,
-                    x="Year",
-                    y="Government Expenditure (IMF & Wiki)",
-                    color="Region",
-                    color_discrete_sequence=[
-                        "red",
-                        "magenta",
-                        "goldenrod",
-                        "green",
-                        "blue",
-                    ],
-                    category_orders={
-                        "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
-                    },
-                    hover_data={
-                        "Country": True,
-                        "Population": True,
-                    },
-                    title="placeholder",
-                ).data[0],
-                row=2,
-                col=1,
-            )
+        fig = make_line_plots(df=spending_df)
         fig.update_traces(
             line=dict(
                 width=1.0,
             )
         )
-        fig.update_xaxes(type="log" if log_x else "linear")
-        fig.update_yaxes(type="log" if log_y else "linear")
+        fig.update_xaxes(type="log" if log_x else "linear", row=1, col=1)
+        fig.update_xaxes(
+            title_text="Year", type="log" if log_x else "linear", row=2, col=1
+        )
+        fig.update_yaxes(
+            title_text="GDP per capita",
+            type="log" if log_y else "linear",
+            row=1,
+            col=1,
+        )
+        fig.update_yaxes(
+            title_text="Government Expenditure",
+            type="log" if log_y else "linear",
+            row=2,
+            col=1,
+        )
+        fig.update_layout(height=600, width=600)
         fig.add_vline(
             x=long_range[0],
             line_width=1.5,
@@ -314,14 +341,6 @@ def main():
             line_width=1.5,
             line_dash="dash",
             line_color="red",
-        )
-        seen_regions = set()
-        fig.for_each_trace(
-            lambda trace: (
-                trace.update(showlegend=False)
-                if (trace.name in seen_regions)
-                else seen_regions.add(trace.name)
-            )
         )
 
         fig = apply_graph_stylings(fig)
