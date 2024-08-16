@@ -2,6 +2,8 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+import plotly.subplots as sp
 import os
 
 root_dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -55,6 +57,85 @@ def get_spending_df(root_dir_path):
         .sort_values(["Country", "Year"])
     )
     return df
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def make_region_avg_df(spending_df):
+    region_avg_spending_df = (
+        spending_df.groupby(["Region", "Year"])
+        .agg(
+            {
+                "Population": "sum",
+                "GDP per capita (OWiD)": "mean",
+                "Government Expenditure (IMF & Wiki)": "mean",
+            }
+        )
+        .reset_index()
+    )
+    region_avg_spending_df["Country"] = region_avg_spending_df["Region"] + "_avg"
+    return region_avg_spending_df
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def make_line_plots(df):
+    fig = sp.make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02)
+    for country in df["Country"].unique():
+        filtered_df = df.loc[df["Country"] == country, :]
+        fig.add_trace(
+            px.line(
+                filtered_df,
+                x="Year",
+                y="GDP per capita (OWiD)",
+                color="Region",
+                color_discrete_sequence=[
+                    "red",
+                    "magenta",
+                    "goldenrod",
+                    "green",
+                    "blue",
+                ],
+                category_orders={
+                    "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+                },
+                hover_data={
+                    "Country": True,
+                    "Population": True,
+                },
+            ).data[0],
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            px.line(
+                filtered_df,
+                x="Year",
+                y="Government Expenditure (IMF & Wiki)",
+                color="Region",
+                color_discrete_sequence=[
+                    "red",
+                    "magenta",
+                    "goldenrod",
+                    "green",
+                    "blue",
+                ],
+                category_orders={
+                    "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+                },
+                hover_data={
+                    "Country": True,
+                    "Population": True,
+                },
+            ).data[0],
+            row=2,
+            col=1,
+        )
+    seen_regions = set()
+    fig.for_each_trace(
+        lambda trace: (
+            trace.update(showlegend=False)
+            if (trace.name in seen_regions)
+            else seen_regions.add(trace.name)
+        )
+    )
+    return fig
 
 
 def apply_graph_stylings(fig):
@@ -152,6 +233,7 @@ def main():
     jobs_df = get_jobs_df(root_dir_path)
     forex_df = get_forex_df(root_dir_path).astype({"GDP_per_capita_USD": "float64"})
     spending_df = get_spending_df(root_dir_path)
+    region_avg_df = make_region_avg_df(spending_df)
     all_countries = (
         pd.concat([spending_df["Country"], forex_df["Country"]])
         .drop_duplicates()
@@ -216,11 +298,12 @@ def main():
         )
         with btm_centre_years_col:
             with st.container(border=True):
+                region_avg_mode = st.toggle("Region Averages", value=False)
                 long_range = st.slider(
                     "Long-Term Spending and Growth Range",
                     1850,
                     2019,
-                    (2003, 2011),
+                    (1999, 2019),
                     help="The range over which multiple 'Spending & Growth' data will be calculated.",
                 )
                 sub_period = st.number_input(
@@ -240,6 +323,50 @@ def main():
                 else:
                     st.write("Number of Subperiods: {}".format(nPeriods))
 
+        ### Display line graphs
+        if region_avg_mode:
+            plot_spending_df = region_avg_df
+        else:
+            plot_spending_df = spending_df
+        fig = make_line_plots(df=plot_spending_df)
+        fig.update_traces(
+            line=dict(
+                width=1.0,
+            )
+        )
+        fig.update_xaxes(type="log" if log_x else "linear", row=1, col=1)
+        fig.update_xaxes(
+            title_text="Year", type="log" if log_x else "linear", row=2, col=1
+        )
+        fig.update_yaxes(
+            title_text="GDP per capita",
+            type="log" if log_y else "linear",
+            row=1,
+            col=1,
+        )
+        fig.update_yaxes(
+            title_text="Government Expenditure",
+            type="log" if log_y else "linear",
+            row=2,
+            col=1,
+        )
+        fig.update_layout(height=600, width=600)
+        fig.add_vline(
+            x=long_range[0],
+            line_width=1.5,
+            line_dash="dash",
+            line_color="red",
+        )
+        fig.add_vline(
+            x=long_range[1],
+            line_width=1.5,
+            line_dash="dash",
+            line_color="red",
+        )
+
+        fig = apply_graph_stylings(fig)
+        st.plotly_chart(fig, theme=None, use_container_width=True)
+
         ### Generate "scatter" data
         x_title_no_brackets = "Average Government Expenditure as % of GDP"
         y_title_no_brackets = "Average percentage change in GDP per capita USD"
@@ -247,7 +374,7 @@ def main():
         for p in range(nPeriods):
             sg_range = (long_range[0] + p, long_range[0] + p + sub_period)
             subperiod_df, spend_col, growth_col = transform_spending_df(
-                df=spending_df, spending_range=sg_range, growth_range=sg_range
+                df=plot_spending_df, spending_range=sg_range, growth_range=sg_range
             )
             subperiod_df = subperiod_df.loc[
                 :, ["Country", "Region", "Population", spend_col, growth_col]
@@ -262,17 +389,13 @@ def main():
             all_subperiod_df_list.append(subperiod_df)
         all_subperiod_df = pd.concat(all_subperiod_df_list).reset_index(drop=True)
 
-        ### Display
-        # st.dataframe(spending_df)
-
-        # st.dataframe(all_subperiod_df)
-
         selected_plot = st.selectbox(
             label="Plot Type",
             options=["Scatter", "Heatmap"],
             index=0,
         )
 
+        ### Plot scatter/heatmap
         if selected_plot == "Scatter":
             ### Add repeats
             if weight_pop:
@@ -508,7 +631,6 @@ def main():
                 file_name="{0}_vs_{1}.csv".format(x_title, y_title),
                 mime="text/csv",
             )
-
 
 if __name__ == "__main__":
     main()
