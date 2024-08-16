@@ -58,6 +58,21 @@ def get_spending_df(root_dir_path):
     )
     return df
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def make_region_avg_df(spending_df):
+    region_avg_spending_df = (
+        spending_df.groupby(["Region", "Year"])
+        .agg(
+            {
+                "Population": "sum",
+                "GDP per capita (OWiD)": "mean",
+                "Government Expenditure (IMF & Wiki)": "mean",
+            }
+        )
+        .reset_index()
+    )
+    region_avg_spending_df["Country"] = region_avg_spending_df["Region"] + "_avg"
+    return region_avg_spending_df
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def make_line_plots(df):
@@ -218,6 +233,7 @@ def main():
     jobs_df = get_jobs_df(root_dir_path)
     forex_df = get_forex_df(root_dir_path).astype({"GDP_per_capita_USD": "float64"})
     spending_df = get_spending_df(root_dir_path)
+    region_avg_df = make_region_avg_df(spending_df)
     all_countries = (
         pd.concat([spending_df["Country"], forex_df["Country"]])
         .drop_duplicates()
@@ -282,11 +298,12 @@ def main():
         )
         with btm_centre_years_col:
             with st.container(border=True):
+                region_avg_mode = st.toggle("Region Averages", value=False)
                 long_range = st.slider(
                     "Long-Term Spending and Growth Range",
                     1850,
                     2019,
-                    (2003, 2011),
+                    (1999, 2019),
                     help="The range over which multiple 'Spending & Growth' data will be calculated.",
                 )
                 sub_period = st.number_input(
@@ -307,7 +324,11 @@ def main():
                     st.write("Number of Subperiods: {}".format(nPeriods))
 
         ### Display line graphs
-        fig = make_line_plots(df=spending_df)
+        if region_avg_mode:
+            plot_spending_df = region_avg_df
+        else:
+            plot_spending_df = spending_df
+        fig = make_line_plots(df=plot_spending_df)
         fig.update_traces(
             line=dict(
                 width=1.0,
@@ -353,7 +374,7 @@ def main():
         for p in range(nPeriods):
             sg_range = (long_range[0] + p, long_range[0] + p + sub_period)
             subperiod_df, spend_col, growth_col = transform_spending_df(
-                df=spending_df, spending_range=sg_range, growth_range=sg_range
+                df=plot_spending_df, spending_range=sg_range, growth_range=sg_range
             )
             subperiod_df = subperiod_df.loc[
                 :, ["Country", "Region", "Population", spend_col, growth_col]
@@ -610,7 +631,6 @@ def main():
                 file_name="{0}_vs_{1}.csv".format(x_title, y_title),
                 mime="text/csv",
             )
-
 
 if __name__ == "__main__":
     main()
