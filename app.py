@@ -58,21 +58,40 @@ def get_spending_df(root_dir_path):
     )
     return df
 
+
 @st.cache_data(ttl=3600, show_spinner=False)
-def make_region_avg_df(spending_df):
-    region_avg_spending_df = (
-        spending_df.groupby(["Region", "Year"])
-        .agg(
-            {
-                "Population": "sum",
-                "GDP per capita (OWiD)": "mean",
-                "Government Expenditure (IMF & Wiki)": "mean",
-            }
+def make_region_avg_df(spending_df, weight_pop):
+    if weight_pop:
+        wm = lambda x: np.average(x, weights=spending_df.loc[x.index, "Population"])
+        region_avg_spending_df = (
+            spending_df.groupby(["Region", "Year"])
+            .agg(
+                **{
+                    "Population": ("Population", "sum"),
+                    "GDP per capita (OWiD)": ("GDP per capita (OWiD)", wm),
+                    "Government Expenditure (IMF & Wiki)": (
+                        "Government Expenditure (IMF & Wiki)",
+                        wm,
+                    ),
+                }
+            )
+            .reset_index()
         )
-        .reset_index()
-    )
+    else:
+        region_avg_spending_df = (
+            spending_df.groupby(["Region", "Year"])
+            .agg(
+                {
+                    "Population": "sum",
+                    "GDP per capita (OWiD)": "mean",
+                    "Government Expenditure (IMF & Wiki)": "mean",
+                }
+            )
+            .reset_index()
+        )
     region_avg_spending_df["Country"] = region_avg_spending_df["Region"] + "_avg"
     return region_avg_spending_df
+
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def make_line_plots(df):
@@ -233,7 +252,6 @@ def main():
     jobs_df = get_jobs_df(root_dir_path)
     forex_df = get_forex_df(root_dir_path).astype({"GDP_per_capita_USD": "float64"})
     spending_df = get_spending_df(root_dir_path)
-    region_avg_df = make_region_avg_df(spending_df)
     all_countries = (
         pd.concat([spending_df["Country"], forex_df["Country"]])
         .drop_duplicates()
@@ -324,6 +342,7 @@ def main():
                     st.write("Number of Subperiods: {}".format(nPeriods))
 
         ### Display line graphs
+        region_avg_df = make_region_avg_df(spending_df, weight_pop)
         if region_avg_mode:
             plot_spending_df = region_avg_df
         else:
@@ -398,7 +417,7 @@ def main():
         ### Plot scatter/heatmap
         if selected_plot == "Scatter":
             ### Add repeats
-            if weight_pop:
+            if weight_pop and not region_avg_mode:
                 all_subperiod_df = add_repeats(
                     all_subperiod_df, lowest_repeat, highest_repeat
                 )
@@ -631,6 +650,7 @@ def main():
                 file_name="{0}_vs_{1}.csv".format(x_title, y_title),
                 mime="text/csv",
             )
+
 
 if __name__ == "__main__":
     main()
