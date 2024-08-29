@@ -60,6 +60,16 @@ def get_spending_df(root_dir_path):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
+def get_debt_df(root_dir_path):
+    df = pd.read_csv(root_dir_path + "/data/uk_debt_1692_2023.csv").sort_values(
+        ["Year"]
+    )
+    ### Add country column
+    df["Country"] = "United Kingdom"
+    return df
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
 def make_region_avg_df(spending_df, weight_pop):
     if weight_pop:
         wm = lambda x: np.average(x, weights=spending_df.loc[x.index, "Population"])
@@ -185,6 +195,25 @@ def add_repeats(df, lowest_repeat, highest_repeat):
         + lowest_repeat
     ).round()
     df = df.loc[df.index.repeat(df["repeat"])]
+    return df
+
+
+def add_debt_adjustment(df, debt_df):
+    df = pd.merge(
+        left=df,
+        right=debt_df.loc[:, ["Year", "Country", "Public debt (% of GDP)"]],
+        left_on=["Year", "Country"],
+        right_on=["Year", "Country"],
+        how="left",
+    )
+    ### Calculate total debt and difference year on year
+    df["Total Debt"] = df["Government Expenditure (IMF & Wiki)"] * (
+        df["Public debt (% of GDP)"] / 100
+    )
+    ### Calculate difference of total debt year on year
+    df["Debt change"] = df.groupby(["Country"])["Total Debt"].diff()
+    ### Subtract debt chane from GDP per capita
+    df["GDP per capita (OWiD)"] = df["GDP per capita (OWiD)"] - df["Debt change"]
     return df
 
 
@@ -315,8 +344,14 @@ def main():
             st.columns([1, 10, 1])
         )
         with btm_centre_years_col:
+            toggle_col1, toggle_col2, toggle_buffer = st.columns([1, 1, 1])
             with st.container(border=True):
-                region_avg_mode = st.toggle("Region Averages", value=False)
+                with toggle_col1:
+                    region_avg_mode = st.toggle("Region Averages", value=False)
+                with toggle_col2:
+                    debt_adjusted_mode = st.toggle(
+                        "Debt Adjusted (UK Only)", value=False
+                    )
                 long_range = st.slider(
                     "Long-Term Spending and Growth Range",
                     1850,
@@ -342,6 +377,10 @@ def main():
                     st.write("Number of Subperiods: {}".format(nPeriods))
 
         ### Display line graphs
+        if debt_adjusted_mode:
+            debt_df = get_debt_df(root_dir_path)
+            spending_df = add_debt_adjustment(spending_df, debt_df)
+        #st.dataframe(spending_df)
         region_avg_df = make_region_avg_df(spending_df, weight_pop)
         if region_avg_mode:
             plot_spending_df = region_avg_df
