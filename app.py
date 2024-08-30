@@ -207,13 +207,13 @@ def add_debt_adjustment(df, debt_df):
         how="left",
     )
     ### Calculate total debt and difference year on year
-    df["Total Debt"] = df["Government Expenditure (IMF & Wiki)"] * (
+    df["Debt per capita"] = df["GDP per capita (OWiD)"] * (
         df["Public debt (% of GDP)"] / 100
     )
     ### Calculate difference of total debt year on year
-    df["Debt change"] = df.groupby(["Country"])["Total Debt"].diff()
+    df["Debt change per capita"] = df.groupby(["Country"])["Debt per capita"].diff()
     ### Subtract debt chane from GDP per capita
-    df["GDP per capita (OWiD)"] = df["GDP per capita (OWiD)"] - df["Debt change"]
+    df["GDP per capita (OWiD)"] = df["GDP per capita (OWiD)"] - df["Debt change per capita"]
     return df
 
 
@@ -380,7 +380,6 @@ def main():
         if debt_adjusted_mode:
             debt_df = get_debt_df(root_dir_path)
             spending_df = add_debt_adjustment(spending_df, debt_df)
-        #st.dataframe(spending_df)
         region_avg_df = make_region_avg_df(spending_df, weight_pop)
         if region_avg_mode:
             plot_spending_df = region_avg_df
