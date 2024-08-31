@@ -213,7 +213,9 @@ def add_debt_adjustment(df, debt_df):
     ### Calculate difference of total debt year on year
     df["Debt change per capita"] = df.groupby(["Country"])["Debt per capita"].diff()
     ### Subtract debt chane from GDP per capita
-    df["GDP per capita (OWiD)"] = df["GDP per capita (OWiD)"] - df["Debt change per capita"]
+    df["GDP per capita (debt-adjusted)"] = (
+        df["GDP per capita (OWiD)"] - df["Debt change per capita"]
+    )
     return df
 
 
@@ -385,6 +387,34 @@ def main():
             plot_spending_df = region_avg_df
         else:
             plot_spending_df = spending_df
+        st.dataframe(
+            plot_spending_df.loc[
+                :,
+                [
+                    "Year",
+                    "GDP per capita (OWiD)",
+                    "Public debt (% of GDP)",
+                    "Debt per capita",
+                    "Debt change per capita",
+                    "GDP per capita (debt-adjusted)",
+                ],
+            ]
+        )
+        st.plotly_chart(
+            px.line(
+                plot_spending_df,
+                x="Year",
+                y=[
+                    "GDP per capita (OWiD)",
+                    "Public debt (% of GDP)",
+                    "Debt per capita",
+                    "Debt change per capita",
+                    "GDP per capita (debt-adjusted)",
+                ],
+                color_discrete_sequence=px.colors.qualitative.Safe,
+            ),
+            use_container_width=True,
+        )
         fig = make_line_plots(df=plot_spending_df)
         fig.update_traces(
             line=dict(
