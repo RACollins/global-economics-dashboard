@@ -212,8 +212,10 @@ def add_debt_adjustment(df, debt_df):
     )
     ### Calculate difference of total debt year on year
     df["Debt change per capita"] = df.groupby(["Country"])["Debt per capita"].diff()
-    ### Subtract debt chane from GDP per capita
-    df["GDP per capita (OWiD)"] = df["GDP per capita (OWiD)"] - df["Debt change per capita"]
+    ### Redefine GDP per capita with debt adjustment
+    df["GDP per capita (OWiD)"] = (
+        df["GDP per capita (OWiD)"] - df["Debt per capita"] * 0.1
+    )
     return df
 
 
@@ -385,6 +387,7 @@ def main():
             plot_spending_df = region_avg_df
         else:
             plot_spending_df = spending_df
+
         fig = make_line_plots(df=plot_spending_df)
         fig.update_traces(
             line=dict(
@@ -422,7 +425,15 @@ def main():
         )
 
         fig = apply_graph_stylings(fig)
-        st.plotly_chart(fig, theme=None, use_container_width=True)
+        with st.container(border=True):
+            st.plotly_chart(fig, theme=None, use_container_width=True)
+            ### Download as CSV
+            dwnld_csv_btn = st.download_button(
+                label="Download as CSV",
+                data=plot_spending_df.to_csv(index=True, header=True).encode("utf-8"),
+                file_name="GDP_per_capita_Government_Expenditure_1850_2020.csv",
+                mime="text/csv",
+            )
 
         ### Generate "scatter" data
         x_title_no_brackets = "Average Government Expenditure as % of GDP"
