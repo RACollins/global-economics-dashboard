@@ -61,11 +61,9 @@ def get_spending_df(root_dir_path):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_debt_df(root_dir_path):
-    df = pd.read_csv(root_dir_path + "/data/uk_debt_1692_2023.csv").sort_values(
-        ["Year"]
-    )
-    ### Add country column
-    df["Country"] = "United Kingdom"
+    df = pd.read_csv(
+        root_dir_path + "/data/imf_gross_public_debt_20240924_inverted.csv"
+    ).sort_values(["Year"])
     return df
 
 
@@ -261,8 +259,11 @@ def transform_spending_df(df, spending_range, growth_range):
         how="outer",
     )
 
+    # Fill NA values before calling pct_change using ffill()
+    df["GDP per capita (OWiD)"] = df.groupby("Country")["GDP per capita (OWiD)"].ffill()
+
     df[growth_col] = df.groupby(["Country"])["GDP per capita (OWiD)"].pct_change(
-        periods=(growth_range[1] - growth_range[0])
+        periods=(growth_range[1] - growth_range[0]), fill_method=None
     ) * (100 / (growth_range[1] - growth_range[0]))
 
     ### Filter to most recent growth range year
@@ -351,9 +352,7 @@ def main():
                 with toggle_col1:
                     region_avg_mode = st.toggle("Region Averages", value=False)
                 with toggle_col2:
-                    debt_adjusted_mode = st.toggle(
-                        "Debt Adjusted (UK Only)", value=False
-                    )
+                    debt_adjusted_mode = st.toggle("Debt Adjusted", value=False)
                 long_range = st.slider(
                     "Long-Term Spending and Growth Range",
                     1850,
