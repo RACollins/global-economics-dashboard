@@ -325,7 +325,7 @@ def main():
                 )
             else:
                 remove_countries = st.multiselect(
-                    label="Remove Countries",
+                    label="Removed Countries",
                     options=sorted(all_countries),
                     placeholder="Remove countries from plots",
                 )
