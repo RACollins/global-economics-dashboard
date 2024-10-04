@@ -63,8 +63,33 @@ def get_spending_df(root_dir_path):
 def get_debt_df(root_dir_path):
     df = pd.read_csv(
         root_dir_path + "/data/imf_gross_public_debt_20240924_inverted.csv"
-    ).sort_values(["Year"])
-    return df
+    )
+
+    # Create a complete range of years for each country
+    all_years = pd.DataFrame({"Year": range(df["Year"].min(), df["Year"].max() + 1)})
+    countries = df["Country"].unique()
+
+    # Create a new dataframe with all combinations of countries and years
+    full_df = pd.DataFrame(
+        [(country, year) for country in countries for year in all_years["Year"]],
+        columns=["Country", "Year"],
+    )
+
+    # Merge with original data
+    df = pd.merge(full_df, df, on=["Country", "Year"], how="left")
+
+    # Sort the dataframe
+    df = df.sort_values(["Country", "Year"])
+
+    # Interpolate missing values for each country
+    df["Public debt (% of GDP)"] = df.groupby("Country")[
+        "Public debt (% of GDP)"
+    ].transform(lambda x: x.interpolate(method="linear", limit_direction="both"))
+
+    # Print debug information for Germany
+    print(df[(df["Country"] == "Germany") & (df["Year"].between(1913, 1926))])
+
+    return df.sort_values(["Year", "Country"])
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
