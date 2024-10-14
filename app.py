@@ -102,8 +102,8 @@ def make_region_avg_df(spending_df, weight_pop):
                 **{
                     "Population": ("Population", "sum"),
                     "GDP per capita (OWiD)": ("GDP per capita (OWiD)", wm),
-                    "Government Expenditure (IMF & Wiki)": (
-                        "Government Expenditure (IMF & Wiki)",
+                    "Government Expenditure (IMF, Wiki, Statistica)": (
+                        "Government Expenditure (IMF, Wiki, Statistica)",
                         wm,
                     ),
                 }
@@ -117,7 +117,7 @@ def make_region_avg_df(spending_df, weight_pop):
                 {
                     "Population": "sum",
                     "GDP per capita (OWiD)": "mean",
-                    "Government Expenditure (IMF & Wiki)": "mean",
+                    "Government Expenditure (IMF, Wiki, Statistica)": "mean",
                 }
             )
             .reset_index()
@@ -159,7 +159,7 @@ def make_line_plots(df):
             px.line(
                 filtered_df,
                 x="Year",
-                y="Government Expenditure (IMF & Wiki)",
+                y="Government Expenditure (IMF, Wiki, Statistica)",
                 color="Region",
                 color_discrete_sequence=[
                     "red",
@@ -269,11 +269,11 @@ def transform_spending_df(df, spending_range, growth_range):
                 df["Year"].isin(list(range(spending_range[0], spending_range[1] + 1))),
                 :,
             ]
-            .groupby(["Country"])["Government Expenditure (IMF & Wiki)"]
+            .groupby(["Country"])["Government Expenditure (IMF, Wiki, Statistica)"]
             .mean()
         )
         .reset_index()
-        .rename(columns={"Government Expenditure (IMF & Wiki)": spend_col})
+        .rename(columns={"Government Expenditure (IMF, Wiki, Statistica)": spend_col})
     )
 
     df = pd.merge(
@@ -381,8 +381,8 @@ def main():
                 long_range = st.slider(
                     "Long-Term Spending and Growth Range",
                     1850,
-                    2019,
-                    (1999, 2019),
+                    2022,
+                    (1999, 2022),
                     help="The range over which multiple 'Spending & Growth' data will be calculated.",
                 )
                 sub_period = st.number_input(
@@ -390,7 +390,7 @@ def main():
                     value=5,
                     step=1,
                     min_value=1,
-                    max_value=169,
+                    max_value=172,
                     help="The length of time over which a single 'Spending & Growth' datum will be calculated.",
                 )
                 nPeriods = long_range[1] - (long_range[0] + sub_period) + 1
