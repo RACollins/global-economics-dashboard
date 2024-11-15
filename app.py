@@ -86,10 +86,13 @@ def get_debt_df(root_dir_path):
         "Public debt (% of GDP)"
     ].transform(lambda x: x.interpolate(method="linear", limit_direction="both"))
 
-    # Print debug information for Germany
-    print(df[(df["Country"] == "Germany") & (df["Year"].between(1913, 1926))])
-
     return df.sort_values(["Year", "Country"])
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_uk_historical_gdp_df(root_dir_path):
+    df = pd.read_csv(root_dir_path + "/data/uk_historical_gdp.csv")
+    return df
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -363,8 +366,13 @@ def main():
         lowest_repeat, highest_repeat = 1, 100
 
     ### Tabs
-    tab_headers = {"tab1": "Spending & Growth", "tab2": "Salaries", "tab3": "Forex."}
-    tab1, tab2, tab3 = st.tabs([tab_headers[k] for k, v in tab_headers.items()])
+    tab_headers = {
+        "tab1": "Spending & Growth",
+        "tab2": "Salaries",
+        "tab3": "Forex.",
+        "tab4": "UK Historical GDP",
+    }
+    tab1, tab2, tab3, tab4 = st.tabs([tab_headers[k] for k, v in tab_headers.items()])
 
     with tab1:
         ### Bottom Filters
@@ -723,6 +731,101 @@ def main():
                 file_name="{0}_vs_{1}.csv".format(x_title, y_title),
                 mime="text/csv",
             )
+
+    with tab4:
+        uk_historical_gdp_df = get_uk_historical_gdp_df(root_dir_path)
+        # st.dataframe(uk_historical_gdp_df)
+
+        ### Filter df
+        uk_historical_gdp_df = uk_historical_gdp_df.loc[
+            uk_historical_gdp_df["Year"].between(1300, 1825)
+        ].reset_index(drop=True)
+
+        ### Plot
+        size = "Population (England)" if show_pop else None
+        x_title, y_title = "Year", "GDP Per Person"
+        fig = px.scatter(
+            uk_historical_gdp_df,
+            x=x_title,
+            y=y_title,
+            color="Region",
+            color_discrete_sequence=["red", "magenta", "goldenrod", "green", "blue"],
+            category_orders={
+                "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+            },
+            size=size,
+            size_max=80,
+            opacity=0.35,
+            hover_data={"Country": True, "Population (England)": True},
+            title="Historical GDP Per Person in England",
+            log_x=log_x,
+            log_y=log_y,
+        )
+        ### Add moving average line
+        fig.add_trace(
+            px.line(
+                uk_historical_gdp_df,
+                x="Year",
+                y="GDP Per Person (20-year moving average)",
+                title="20-year moving average",
+                color_discrete_sequence=["black"],
+            ).data[0]
+        )
+        fig = apply_graph_stylings(fig)
+        with st.container(border=True):
+            st.plotly_chart(fig, theme=None, use_container_width=True)
+
+        ### Plot with population as x-axis and GDP per person as y-axis
+        x_title, y_title = "Population (England)", "GDP Per Person"
+        fig = px.scatter(
+            uk_historical_gdp_df,
+            x=x_title,
+            y=y_title,
+            color="Region",
+            color_discrete_sequence=["red", "magenta", "goldenrod", "green", "blue"],
+            category_orders={
+                "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+            },
+            size=size,
+            size_max=80,
+            opacity=0.35,
+            hover_data={"Country": True, "Population (England)": True, "Year": True},
+            title="GDP Per Person vs. Population in England",
+            log_x=log_x,
+            log_y=log_y,
+        )
+        ### Add moving average line
+        fig.add_trace(
+            px.line(
+                uk_historical_gdp_df,
+                x="Population (England)",
+                y="GDP Per Person (20-year moving average)",
+                hover_data={"Year": True},
+                title="20-year moving average",
+                color_discrete_sequence=["black"],
+            ).data[0]
+        )
+        ### Add year annotations at regular intervals
+        df_subset = uk_historical_gdp_df.loc[
+            uk_historical_gdp_df["Year"].isin(
+                list(range(1300, 1825, 50)) + [1825]
+            )
+        ]
+
+        for _, row in df_subset.iterrows():
+            fig.add_annotation(
+                x=row["Population (England)"],
+                y=row["GDP Per Person (20-year moving average)"],
+                text=str(int(row["Year"])),
+                showarrow=True,
+                arrowhead=1,
+                ax=0,
+                ay=-40,
+                font=dict(size=10)
+            )
+        fig = apply_graph_stylings(fig)
+        with st.container(border=True):
+            st.plotly_chart(fig, theme=None, use_container_width=True)
 
 
 if __name__ == "__main__":
