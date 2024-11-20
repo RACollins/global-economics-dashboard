@@ -94,6 +94,11 @@ def get_uk_historical_gdp_df(root_dir_path):
     df = pd.read_csv(root_dir_path + "/data/uk_historical_gdp.csv")
     return df
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_uk_historical_labour_df(root_dir_path):
+    df = pd.read_csv(root_dir_path + "/data/labour_silver_bread.csv")
+    return df
+
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def make_region_avg_df(spending_df, weight_pop):
@@ -371,8 +376,9 @@ def main():
         "tab2": "Salaries",
         "tab3": "Forex.",
         "tab4": "UK Historical GDP",
+        "tab5": "Labour, Silver, Bread",
     }
-    tab1, tab2, tab3, tab4 = st.tabs([tab_headers[k] for k, v in tab_headers.items()])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([tab_headers[k] for k, v in tab_headers.items()])
 
     with tab1:
         ### Bottom Filters
@@ -734,7 +740,6 @@ def main():
 
     with tab4:
         uk_historical_gdp_df = get_uk_historical_gdp_df(root_dir_path)
-        # st.dataframe(uk_historical_gdp_df)
 
         ### Filter df
         uk_historical_gdp_df = uk_historical_gdp_df.loc[
@@ -826,6 +831,10 @@ def main():
         fig = apply_graph_stylings(fig)
         with st.container(border=True):
             st.plotly_chart(fig, theme=None, use_container_width=True)
+
+    with tab5:
+        labour_df = get_uk_historical_labour_df(root_dir_path)
+        st.dataframe(labour_df)
 
 
 if __name__ == "__main__":
