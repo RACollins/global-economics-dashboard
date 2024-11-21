@@ -94,10 +94,35 @@ def get_uk_historical_gdp_df(root_dir_path):
     df = pd.read_csv(root_dir_path + "/data/uk_historical_gdp.csv")
     return df
 
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_uk_historical_labour_df(root_dir_path):
     df = pd.read_csv(root_dir_path + "/data/labour_silver_bread.csv")
-    return df
+    ### Rename relevant columns
+    df = df.rename(
+        columns={
+            "Minutes Req": "2500KCal in Bread",
+            "min per g Ag": "1g of Silver",
+        }
+    )
+    ### Melt to leave only relevant columns
+    melted_df = df.melt(
+        id_vars=["Year"],
+        value_vars=[
+            "2500KCal in Bread",
+            "1g of Silver",
+        ],
+        var_name="Labour measure",
+        value_name="Time to aquire (minutes)",
+    )
+    ### Merge in population
+    final_df = pd.merge(
+        left=melted_df,
+        right=df.loc[:, ["Year", "Population (England)"]],
+        left_on="Year",
+        right_on="Year",
+    )
+    return final_df
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -376,9 +401,11 @@ def main():
         "tab2": "Salaries",
         "tab3": "Forex.",
         "tab4": "UK Historical GDP",
-        "tab5": "Labour, Silver, Bread",
+        "tab5": "Silver and Bread",
     }
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([tab_headers[k] for k, v in tab_headers.items()])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        [tab_headers[k] for k, v in tab_headers.items()]
+    )
 
     with tab1:
         ### Bottom Filters
@@ -749,7 +776,7 @@ def main():
         ### Plot
         size = "Population (England)" if show_pop else None
         x_title, y_title = "Year", "GDP Per Person"
-        fig = px.scatter(
+        upper_fig = px.scatter(
             uk_historical_gdp_df,
             x=x_title,
             y=y_title,
@@ -767,7 +794,7 @@ def main():
             log_y=log_y,
         )
         ### Add moving average line
-        fig.add_trace(
+        upper_fig.add_trace(
             px.line(
                 uk_historical_gdp_df,
                 x="Year",
@@ -776,13 +803,11 @@ def main():
                 color_discrete_sequence=["black"],
             ).data[0]
         )
-        fig = apply_graph_stylings(fig)
-        with st.container(border=True):
-            st.plotly_chart(fig, theme=None, use_container_width=True)
+        upper_fig = apply_graph_stylings(upper_fig)
 
         ### Plot with population as x-axis and GDP per person as y-axis
         x_title, y_title = "Population (England)", "GDP Per Person"
-        fig = px.scatter(
+        lower_fig = px.scatter(
             uk_historical_gdp_df,
             x=x_title,
             y=y_title,
@@ -800,7 +825,7 @@ def main():
             log_y=log_y,
         )
         ### Add moving average line
-        fig.add_trace(
+        lower_fig.add_trace(
             px.line(
                 uk_historical_gdp_df,
                 x="Population (England)",
@@ -812,13 +837,11 @@ def main():
         )
         ### Add year annotations at regular intervals
         df_subset = uk_historical_gdp_df.loc[
-            uk_historical_gdp_df["Year"].isin(
-                list(range(1300, 1825, 50)) + [1825]
-            )
+            uk_historical_gdp_df["Year"].isin(list(range(1300, 1825, 50)) + [1825])
         ]
 
         for _, row in df_subset.iterrows():
-            fig.add_annotation(
+            lower_fig.add_annotation(
                 x=row["Population (England)"],
                 y=row["GDP Per Person (20-year moving average)"],
                 text=str(int(row["Year"])),
@@ -826,15 +849,115 @@ def main():
                 arrowhead=1,
                 ax=0,
                 ay=-40,
-                font=dict(size=10)
+                font=dict(size=10),
             )
-        fig = apply_graph_stylings(fig)
+        lower_fig = apply_graph_stylings(lower_fig)
         with st.container(border=True):
-            st.plotly_chart(fig, theme=None, use_container_width=True)
+            st.plotly_chart(upper_fig, theme=None, use_container_width=True)
+            st.plotly_chart(lower_fig, theme=None, use_container_width=True)
+            ### Download as CSV
+            dwnld_csv_btn = st.download_button(
+                label="Download as CSV",
+                data=uk_historical_gdp_df.to_csv(index=True, header=True).encode(
+                    "utf-8"
+                ),
+                file_name="GDP_Per_Person_in_England_1300_1825.csv",
+                mime="text/csv",
+            )
 
     with tab5:
         labour_df = get_uk_historical_labour_df(root_dir_path)
-        st.dataframe(labour_df)
+
+        ### Plot
+        x_title, y_title = "Year", "Time to aquire (minutes)"
+        fig = px.line(
+            labour_df,
+            title="Value of Labour of an Agricultural Worker in England (1200 to 2000)",
+            x=x_title,
+            y=y_title,
+            color="Labour measure",
+            custom_data=["Year"],  # Add year to hover data
+        )
+
+        ### Get unique population data for each year
+        population_df = labour_df[["Year", "Population (England)"]].drop_duplicates()
+
+        ### Add population trace with secondary y-axis
+        fig.add_trace(
+            go.Scatter(
+                x=population_df["Year"],
+                y=population_df["Population (England)"],
+                name="Population",
+                line=dict(color="black", dash="dot"),
+                yaxis="y2",
+                hovertemplate="Population: %{y:,.0f}<br>Year: %{x}<extra></extra>",
+            )
+        )
+
+        ### Create tick values and text with "M" only on 1M, 10M, 100M
+        tick_vals = [
+            1e6,
+            2e6,
+            3e6,
+            4e6,
+            5e6,
+            6e6,
+            7e6,
+            8e6,
+            9e6,
+            1e7,
+            2e7,
+            3e7,
+            4e7,
+            5e7,
+            6e7,
+            7e7,
+            8e7,
+            9e7,
+            1e8,
+        ]
+        tick_text = [
+            f"{int(val/1e6)}M" if val in [1e6, 1e7, 1e8] else f"{int(val/1e6)}"
+            for val in tick_vals
+        ]
+
+        ### Update layout to include secondary y-axis with log scale and unified hover
+        fig.update_layout(
+            yaxis2=dict(
+                title="Population",
+                overlaying="y",
+                side="right",
+                showgrid=False,
+                type="log",
+                range=[6, 8],  # 10^6 (1M) to 10^8 (100M)
+                tickvals=tick_vals,
+                ticktext=tick_text,
+            ),
+            hovermode="x unified",
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.2,
+            ),
+        )
+
+        ### Update hover template for the time traces
+        fig.update_traces(
+            hovertemplate="%{y:.0f} minutes<br>%{x}<extra>%{fullData.name}</extra>",
+            selector=dict(yaxis="y1"),
+        )
+
+        fig = apply_graph_stylings(fig)
+        with st.container(border=True):
+            st.plotly_chart(fig, theme=None, use_container_width=True)
+            ### Download as CSV
+            dwnld_csv_btn = st.download_button(
+                label="Download as CSV",
+                data=labour_df.to_csv(index=True, header=True).encode("utf-8"),
+                file_name="Value_of_Labour_of_an_Agricultural_Worker_in_England_1200_2000.csv",
+                mime="text/csv",
+            )
 
 
 if __name__ == "__main__":
