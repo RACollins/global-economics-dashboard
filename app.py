@@ -103,10 +103,16 @@ def get_uk_historical_labour_df(root_dir_path):
         columns={
             "Minutes Req": "2500KCal in Bread",
             "min per g Ag": "1g of Silver",
+            "d/day": "Daily Earnings (pence)",
+            "g. Ag/day": "Daily Earnings (grams of silver)",
+            "bread d/lb": "Price of bread (pence per pound)",
+            "bread g. Ag/lb": "Price of bread (grams of silver per pound)",
+            "Cost in d for 2500 Kcal": "Cost of 2500KCal of bread (pence)",
+            "Cost in Silver for 2500 Kcal Bread": "Cost of 2500KCal of bread (grams of silver)",
         }
     )
     ### Melt to leave only relevant columns
-    melted_df = df.melt(
+    labour_melted_df = df.melt(
         id_vars=["Year"],
         value_vars=[
             "2500KCal in Bread",
@@ -115,14 +121,64 @@ def get_uk_historical_labour_df(root_dir_path):
         var_name="Labour measure",
         value_name="Time to aquire (minutes)",
     )
+    pence_melted_df = df.melt(
+        id_vars=["Year"],
+        value_vars=[
+            "Daily Earnings (pence)",
+            "Price of bread (pence per pound)",
+            "Cost of 2500KCal of bread (pence)",
+        ],
+        var_name="Measure (pence)",
+        value_name="Pence",
+    )
+    pence_melted_df["Measure (pence)"] = pence_melted_df["Measure (pence)"].replace(
+        {
+            "Daily Earnings (pence)": "Daily Earnings",
+            "Price of bread (pence per pound)": "1lb of bread",
+            "Cost of 2500KCal of bread (pence)": "2500KCal of bread",
+        }
+    )
+    silver_melted_df = df.melt(
+        id_vars=["Year"],
+        value_vars=[
+            "Daily Earnings (grams of silver)",
+            "Price of bread (grams of silver per pound)",
+            "Cost of 2500KCal of bread (grams of silver)",
+        ],
+        var_name="Measure (grams of silver)",
+        value_name="Grams of silver",
+    )
+    silver_melted_df["Measure (grams of silver)"] = silver_melted_df[
+        "Measure (grams of silver)"
+    ].replace(
+        {
+            "Daily Earnings (grams of silver)": "Daily Earnings",
+            "Price of bread (grams of silver per pound)": "1lb of bread",
+            "Cost of 2500KCal of bread (grams of silver)": "2500KCal of bread",
+        }
+    )
+    ### Merge in pence data
+    final_df = pd.merge(
+        left=labour_melted_df,
+        right=pence_melted_df,
+        left_on=["Year"],
+        right_on=["Year"],
+    )
+    ### Merge in silver data
+    final_df = pd.merge(
+        left=final_df,
+        right=silver_melted_df,
+        left_on=["Year"],
+        right_on=["Year"],
+    )
     ### Merge in population
     final_df = pd.merge(
-        left=melted_df,
+        left=final_df,
         right=df.loc[:, ["Year", "Population (England)"]],
         left_on="Year",
         right_on="Year",
     )
-    return final_df
+    return final_df.sort_values(["Year"]).reset_index(drop=True)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -867,20 +923,117 @@ def main():
 
     with tab5:
         labour_df = get_uk_historical_labour_df(root_dir_path)
+        ### Get unique population data for each year
+        population_df = labour_df[["Year", "Population (England)"]].drop_duplicates()
 
-        ### Plot
+        ### Plot silver/pence data
+        with st.container(border=True):
+            which_measure = st.radio(
+                "Pence or Silver?",
+                ["Pence", "Grams of silver"],
+                key="which_measure_radio",
+                label_visibility="collapsed",
+                horizontal=True,
+            )
+            colour = "Measure (pence)" if which_measure == "Pence" else "Measure (grams of silver)"
+            fig = px.line(
+                labour_df,
+                title="Give us today our daily bread...",
+                x="Year",
+                y=which_measure,
+                log_x=log_x,
+                log_y=log_y,
+                color=colour,
+                custom_data=["Year"],
+            )
+            ### Add population trace with secondary y-axis
+            fig.add_trace(
+                go.Scatter(
+                    x=population_df["Year"],
+                    y=population_df["Population (England)"],
+                    name="Population",
+                    line=dict(color="black", dash="dot"),
+                    yaxis="y2",
+                    hovertemplate="Population: %{y:,.0f}<br>Year: %{x}<extra></extra>",
+                )
+            )
+
+            ### Create tick values and text with "M" only on 1M, 10M, 100M
+            tick_vals = [
+                1e6,
+                2e6,
+                3e6,
+                4e6,
+                5e6,
+                6e6,
+                7e6,
+                8e6,
+                9e6,
+                1e7,
+                2e7,
+                3e7,
+                4e7,
+                5e7,
+                6e7,
+                7e7,
+                8e7,
+                9e7,
+                1e8,
+            ]
+            tick_text = [
+                f"{int(val/1e6)}M" if val in [1e6, 1e7, 1e8] else f"{int(val/1e6)}"
+                for val in tick_vals
+            ]
+
+            ### Update layout to include secondary y-axis with log scale and unified hover
+            fig.update_layout(
+                yaxis2=dict(
+                    title="Population",
+                    overlaying="y",
+                    side="right",
+                    showgrid=False,
+                    type="log",
+                    range=[6, 8],  # 10^6 (1M) to 10^8 (100M)
+                    tickvals=tick_vals,
+                    ticktext=tick_text,
+                ),
+                hovermode="x unified",
+                legend=dict(
+                    yanchor="top",
+                    y=0.99,
+                    xanchor="left",
+                    x=0.2,
+                ),
+            )
+
+            ### Update hover template for the time traces
+            fig.update_traces(
+                hovertemplate="%{y:.0f} minutes<br>%{x}<extra>%{fullData.name}</extra>",
+                selector=dict(yaxis="y1"),
+            )
+
+            fig = apply_graph_stylings(fig)
+            st.plotly_chart(fig, theme=None, use_container_width=True)
+            ### Download as CSV
+            dwnld_csv_btn = st.download_button(
+                label="Download as CSV",
+                data=labour_df.to_csv(index=True, header=True).encode("utf-8"),
+                file_name="Bread_cost_in_England_1200_2000.csv",
+                mime="text/csv",
+            )
+
+        ### Plot labour data
         x_title, y_title = "Year", "Time to aquire (minutes)"
         fig = px.line(
             labour_df,
             title="Value of Labour of an Agricultural Worker in England (1200 to 2000)",
             x=x_title,
             y=y_title,
+            log_x=log_x,
+            log_y=log_y,
             color="Labour measure",
-            custom_data=["Year"],  # Add year to hover data
+            custom_data=["Year"],
         )
-
-        ### Get unique population data for each year
-        population_df = labour_df[["Year", "Population (England)"]].drop_duplicates()
 
         ### Add population trace with secondary y-axis
         fig.add_trace(
