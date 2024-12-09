@@ -124,26 +124,23 @@ def get_uk_historical_labour_df(root_dir_path):
     pence_melted_df = df.melt(
         id_vars=["Year"],
         value_vars=[
-            "Daily Earnings (pence)",
-            "Price of bread (pence per pound)",
             "Cost of 2500KCal of bread (pence)",
+            "Daily Earnings (pence)",
         ],
         var_name="Measure (pence)",
         value_name="Pence",
     )
     pence_melted_df["Measure (pence)"] = pence_melted_df["Measure (pence)"].replace(
         {
-            "Daily Earnings (pence)": "Daily Earnings",
-            "Price of bread (pence per pound)": "1lb of bread",
             "Cost of 2500KCal of bread (pence)": "2500KCal of bread",
+            "Daily Earnings (pence)": "Daily Earnings",
         }
     )
     silver_melted_df = df.melt(
         id_vars=["Year"],
         value_vars=[
-            "Daily Earnings (grams of silver)",
-            "Price of bread (grams of silver per pound)",
             "Cost of 2500KCal of bread (grams of silver)",
+            "Daily Earnings (grams of silver)",
         ],
         var_name="Measure (grams of silver)",
         value_name="Grams of silver",
@@ -152,9 +149,8 @@ def get_uk_historical_labour_df(root_dir_path):
         "Measure (grams of silver)"
     ].replace(
         {
-            "Daily Earnings (grams of silver)": "Daily Earnings",
-            "Price of bread (grams of silver per pound)": "1lb of bread",
             "Cost of 2500KCal of bread (grams of silver)": "2500KCal of bread",
+            "Daily Earnings (grams of silver)": "Daily Earnings",
         }
     )
     ### Merge in pence data
@@ -457,7 +453,7 @@ def main():
         "tab2": "Salaries",
         "tab3": "Forex.",
         "tab4": "UK Historical GDP",
-        "tab5": "Silver and Bread",
+        "tab5": "Bread and Silver",
     }
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
         [tab_headers[k] for k, v in tab_headers.items()]
@@ -923,6 +919,7 @@ def main():
 
     with tab5:
         labour_df = get_uk_historical_labour_df(root_dir_path)
+        st.dataframe(labour_df)
         ### Get unique population data for each year
         population_df = labour_df[["Year", "Population (England)"]].drop_duplicates()
 
@@ -935,7 +932,11 @@ def main():
                 label_visibility="collapsed",
                 horizontal=True,
             )
-            colour = "Measure (pence)" if which_measure == "Pence" else "Measure (grams of silver)"
+            colour = (
+                "Measure (pence)"
+                if which_measure == "Pence"
+                else "Measure (grams of silver)"
+            )
             fig = px.line(
                 labour_df,
                 title="Give us today our daily bread...",
@@ -944,59 +945,12 @@ def main():
                 log_x=log_x,
                 log_y=log_y,
                 color=colour,
+                color_discrete_sequence=px.colors.qualitative.Plotly,
                 custom_data=["Year"],
             )
-            ### Add population trace with secondary y-axis
-            fig.add_trace(
-                go.Scatter(
-                    x=population_df["Year"],
-                    y=population_df["Population (England)"],
-                    name="Population",
-                    line=dict(color="black", dash="dot"),
-                    yaxis="y2",
-                    hovertemplate="Population: %{y:,.0f}<br>Year: %{x}<extra></extra>",
-                )
-            )
-
-            ### Create tick values and text with "M" only on 1M, 10M, 100M
-            tick_vals = [
-                1e6,
-                2e6,
-                3e6,
-                4e6,
-                5e6,
-                6e6,
-                7e6,
-                8e6,
-                9e6,
-                1e7,
-                2e7,
-                3e7,
-                4e7,
-                5e7,
-                6e7,
-                7e7,
-                8e7,
-                9e7,
-                1e8,
-            ]
-            tick_text = [
-                f"{int(val/1e6)}M" if val in [1e6, 1e7, 1e8] else f"{int(val/1e6)}"
-                for val in tick_vals
-            ]
 
             ### Update layout to include secondary y-axis with log scale and unified hover
             fig.update_layout(
-                yaxis2=dict(
-                    title="Population",
-                    overlaying="y",
-                    side="right",
-                    showgrid=False,
-                    type="log",
-                    range=[6, 8],  # 10^6 (1M) to 10^8 (100M)
-                    tickvals=tick_vals,
-                    ticktext=tick_text,
-                ),
                 hovermode="x unified",
                 legend=dict(
                     yanchor="top",
@@ -1021,6 +975,56 @@ def main():
                 file_name="Bread_cost_in_England_1200_2000.csv",
                 mime="text/csv",
             )
+
+            ### Earnings vs. cost of 2500KCal of bread over time
+            ### Filter then pivot first
+            pivoted_labour_df = (
+                labour_df.loc[
+                    :,
+                    [
+                        "Year",
+                        "Measure ({})".format(which_measure.lower()),
+                        "{}".format(which_measure),
+                    ],
+                ]
+                .drop_duplicates()
+                .reset_index(drop=True)
+                .pivot(
+                    index="Year",
+                    columns="Measure ({})".format(which_measure.lower()),
+                    values="{}".format(which_measure),
+                )
+                .reset_index()
+            )
+            st.dataframe(pivoted_labour_df)
+
+            fig = px.scatter(
+                pivoted_labour_df,
+                x="Daily Earnings",
+                y="2500KCal of bread",
+                # color="Measure (pence)",
+                opacity=0.35,
+                hover_data={
+                    "Daily Earnings": True,
+                    "2500KCal of bread": True,
+                    "Year": True,
+                },
+                title=f"Daily earnings vs. cost of 2500KCal of bread ({which_measure})",
+                log_x=log_x,
+                log_y=log_y,
+            )
+            fig = apply_graph_stylings(fig)
+            with st.container(border=True):
+                st.plotly_chart(fig, theme=None, use_container_width=True)
+                ### Download as CSV
+                """ dwnld_csv_btn = st.download_button(
+                    label="Download as CSV",
+                    data=pivoted_labour_df.to_csv(index=True, header=True).encode(
+                        "utf-8"
+                    ),
+                    file_name="Daily_earnings_vs_cost_of_2500KCal_of_bread.csv",
+                    mime="text/csv",
+                ) """
 
         ### Plot labour data
         x_title, y_title = "Year", "Time to aquire (minutes)"
