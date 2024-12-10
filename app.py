@@ -996,14 +996,17 @@ def main():
                 )
                 .reset_index()
             )
+            pivoted_labour_df["% of daily earnings spent on bread"] = (
+                pivoted_labour_df["2500KCal of bread"]
+                / pivoted_labour_df["Daily Earnings"]
+            ) * 100
             st.dataframe(pivoted_labour_df)
 
-            fig = px.scatter(
+            fig = px.line(
                 pivoted_labour_df,
                 x="Daily Earnings",
                 y="2500KCal of bread",
                 # color="Measure (pence)",
-                opacity=0.35,
                 hover_data={
                     "Daily Earnings": True,
                     "2500KCal of bread": True,
@@ -1016,15 +1019,28 @@ def main():
             fig = apply_graph_stylings(fig)
             with st.container(border=True):
                 st.plotly_chart(fig, theme=None, use_container_width=True)
-                ### Download as CSV
-                """ dwnld_csv_btn = st.download_button(
-                    label="Download as CSV",
-                    data=pivoted_labour_df.to_csv(index=True, header=True).encode(
-                        "utf-8"
-                    ),
-                    file_name="Daily_earnings_vs_cost_of_2500KCal_of_bread.csv",
-                    mime="text/csv",
-                ) """
+                ### Download as CSV later
+
+            ### Percentage of daily earnings spend on bread
+            fig = px.line(
+                pivoted_labour_df,
+                x="Year",
+                y="% of daily earnings spent on bread",
+                # color="Measure (pence)",
+                hover_data={
+                    "Daily Earnings": True,
+                    "2500KCal of bread": True,
+                    "% of daily earnings spent on bread": True,
+                    "Year": True,
+                },
+                title=f"Percentage of daily earnings spent on bread ({which_measure})",
+                log_x=log_x,
+                log_y=log_y,
+            )
+            fig = apply_graph_stylings(fig)
+            with st.container(border=True):
+                st.plotly_chart(fig, theme=None, use_container_width=True)
+                
 
         ### Plot labour data
         x_title, y_title = "Year", "Time to aquire (minutes)"
