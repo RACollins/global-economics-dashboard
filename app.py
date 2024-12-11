@@ -919,19 +919,19 @@ def main():
 
     with tab5:
         labour_df = get_uk_historical_labour_df(root_dir_path)
-        st.dataframe(labour_df)
         ### Get unique population data for each year
         population_df = labour_df[["Year", "Population (England)"]].drop_duplicates()
+        ### Select pence or silver
+        which_measure = st.radio(
+            "Pence or Silver?",
+            ["Pence", "Grams of silver"],
+            key="which_measure_radio",
+            label_visibility="visible",
+            horizontal=True,
+        )
 
         ### Plot silver/pence data
         with st.container(border=True):
-            which_measure = st.radio(
-                "Pence or Silver?",
-                ["Pence", "Grams of silver"],
-                key="which_measure_radio",
-                label_visibility="collapsed",
-                horizontal=True,
-            )
             colour = (
                 "Measure (pence)"
                 if which_measure == "Pence"
@@ -976,70 +976,76 @@ def main():
                 mime="text/csv",
             )
 
-            ### Earnings vs. cost of 2500KCal of bread over time
-            ### Filter then pivot first
-            pivoted_labour_df = (
-                labour_df.loc[
-                    :,
-                    [
-                        "Year",
-                        "Measure ({})".format(which_measure.lower()),
-                        "{}".format(which_measure),
-                    ],
-                ]
-                .drop_duplicates()
-                .reset_index(drop=True)
-                .pivot(
-                    index="Year",
-                    columns="Measure ({})".format(which_measure.lower()),
-                    values="{}".format(which_measure),
-                )
-                .reset_index()
+        ### Earnings vs. cost of 2500KCal of bread over time
+        ### Filter then pivot first
+        pivoted_labour_df = (
+            labour_df.loc[
+                :,
+                [
+                    "Year",
+                    "Measure ({})".format(which_measure.lower()),
+                    "{}".format(which_measure),
+                ],
+            ]
+            .drop_duplicates()
+            .reset_index(drop=True)
+            .pivot(
+                index="Year",
+                columns="Measure ({})".format(which_measure.lower()),
+                values="{}".format(which_measure),
             )
-            pivoted_labour_df["% of daily earnings spent on bread"] = (
-                pivoted_labour_df["2500KCal of bread"]
-                / pivoted_labour_df["Daily Earnings"]
-            ) * 100
-            st.dataframe(pivoted_labour_df)
+            .reset_index()
+        )
+        pivoted_labour_df["% of daily earnings spent on bread"] = (
+            pivoted_labour_df["2500KCal of bread"]
+            / pivoted_labour_df["Daily Earnings"]
+        ) * 100
 
-            fig = px.line(
-                pivoted_labour_df,
-                x="Daily Earnings",
-                y="2500KCal of bread",
-                # color="Measure (pence)",
-                hover_data={
-                    "Daily Earnings": True,
-                    "2500KCal of bread": True,
-                    "Year": True,
-                },
-                title=f"Daily earnings vs. cost of 2500KCal of bread ({which_measure})",
-                log_x=log_x,
-                log_y=log_y,
-            )
-            fig = apply_graph_stylings(fig)
-            with st.container(border=True):
-                st.plotly_chart(fig, theme=None, use_container_width=True)
-                ### Download as CSV later
+        fig_xaxis_not_time = px.line(
+            pivoted_labour_df,
+            x="Daily Earnings",
+            y="2500KCal of bread",
+            # color="Measure (pence)",
+            hover_data={
+                "Daily Earnings": True,
+                "2500KCal of bread": True,
+                "Year": True,
+            },
+            title=f"Daily earnings vs. cost of 2500KCal of bread ({which_measure})",
+            log_x=log_x,
+            log_y=log_y,
+        )
+        fig_xaxis_not_time = apply_graph_stylings(fig_xaxis_not_time)
 
-            ### Percentage of daily earnings spend on bread
-            fig = px.line(
-                pivoted_labour_df,
-                x="Year",
-                y="% of daily earnings spent on bread",
-                # color="Measure (pence)",
-                hover_data={
-                    "Daily Earnings": True,
-                    "2500KCal of bread": True,
-                    "% of daily earnings spent on bread": True,
-                    "Year": True,
-                },
-                title=f"Percentage of daily earnings spent on bread ({which_measure})",
-                log_x=log_x,
-                log_y=log_y,
+        ### Percentage of daily earnings spend on bread
+        fig_xaxis_time = px.line(
+            pivoted_labour_df,
+            x="Year",
+            y="% of daily earnings spent on bread",
+            # color="Measure (pence)",
+            hover_data={
+                "Daily Earnings": True,
+                "2500KCal of bread": True,
+                "% of daily earnings spent on bread": True,
+                "Year": True,
+            },
+            title=f"Percentage of daily earnings spent on bread ({which_measure})",
+            log_x=log_x,
+            log_y=log_y,
+        )
+        fig_xaxis_time = apply_graph_stylings(fig_xaxis_time)
+        with st.container(border=True):
+            st.plotly_chart(fig_xaxis_not_time, theme=None, use_container_width=True)
+            st.plotly_chart(fig_xaxis_time, theme=None, use_container_width=True)
+            ### Download as CSV
+            dwnld_csv_btn = st.download_button(
+                label="Download as CSV",
+                data=pivoted_labour_df.to_csv(index=True, header=True).encode(
+                    "utf-8"
+                ),
+                file_name="Daily_earnings_and_cost_of_2500KCal_of_bread_1300_1825.csv",
+                mime="text/csv",
             )
-            fig = apply_graph_stylings(fig)
-            with st.container(border=True):
-                st.plotly_chart(fig, theme=None, use_container_width=True)
                 
 
         ### Plot labour data
