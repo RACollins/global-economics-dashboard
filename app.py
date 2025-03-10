@@ -344,8 +344,10 @@ def transform_spending_df(df, spending_range, growth_range):
     spend_col = "Average Government Expenditure as % of GDP ({0} - {1})".format(
         spending_range[0], spending_range[1]
     )
-    growth_col = "Average percentage change in GDP per capita USD ({0} - {1})".format(
-        growth_range[0], growth_range[1]
+    growth_col = (
+        "Annualized percentage change in GDP per capita USD ({0} - {1})".format(
+            growth_range[0], growth_range[1]
+        )
     )
 
     average_spend_df = (
@@ -369,12 +371,28 @@ def transform_spending_df(df, spending_range, growth_range):
         how="outer",
     )
 
-    # Fill NA values before calling pct_change using ffill()
+    # Fill NA values before calculating growth rate
     df["GDP per capita (OWiD)"] = df.groupby("Country")["GDP per capita (OWiD)"].ffill()
 
-    df[growth_col] = df.groupby(["Country"])["GDP per capita (OWiD)"].pct_change(
-        periods=(growth_range[1] - growth_range[0]), fill_method=None
-    ) * (100 / (growth_range[1] - growth_range[0]))
+    # Calculate annualized growth rate
+    # First get start and end GDP values for each country, ensuring unique values
+    start_gdp = (
+        df[df["Year"] == growth_range[0]]
+        .groupby("Country")["GDP per capita (OWiD)"]
+        .first()
+    )
+    end_gdp = (
+        df[df["Year"] == growth_range[1]]
+        .groupby("Country")["GDP per capita (OWiD)"]
+        .first()
+    )
+
+    # Calculate annualized growth rate: (end/start)^(1/x) - 1
+    x = growth_range[1] - growth_range[0]  # number of years
+    growth_rates = ((end_gdp / start_gdp) ** (1 / x) - 1) * 100  # convert to percentage
+
+    # Add growth rates back to dataframe
+    df[growth_col] = df["Country"].map(growth_rates)
 
     ### Filter to most recent growth range year
     df = df.loc[df["Year"] == growth_range[1]]
@@ -554,7 +572,7 @@ def main():
 
         ### Generate "scatter" data
         x_title_no_brackets = "Average Government Expenditure as % of GDP"
-        y_title_no_brackets = "Average percentage change in GDP per capita USD"
+        y_title_no_brackets = "Annualized percentage change in GDP per capita USD"
         all_subperiod_df_list = []
         for p in range(nPeriods):
             sg_range = (long_range[0] + p, long_range[0] + p + sub_period)
@@ -617,7 +635,7 @@ def main():
                 trendline="ols",
                 trendline_scope="overall",
                 trendline_color_override="black",
-                title="Average Government Spending as a Share of GDP vs. Average change in GDP per capita",
+                title="Average Government Spending as a Share of GDP vs. Annualized change in GDP per capita",
                 log_x=log_x,
                 log_y=log_y,
             )
@@ -997,8 +1015,7 @@ def main():
             .reset_index()
         )
         pivoted_labour_df["% of daily earnings spent on bread"] = (
-            pivoted_labour_df["2500KCal of bread"]
-            / pivoted_labour_df["Daily Earnings"]
+            pivoted_labour_df["2500KCal of bread"] / pivoted_labour_df["Daily Earnings"]
         ) * 100
 
         fig_xaxis_not_time = px.line(
@@ -1040,13 +1057,10 @@ def main():
             ### Download as CSV
             dwnld_csv_btn = st.download_button(
                 label="Download as CSV",
-                data=pivoted_labour_df.to_csv(index=True, header=True).encode(
-                    "utf-8"
-                ),
+                data=pivoted_labour_df.to_csv(index=True, header=True).encode("utf-8"),
                 file_name="Daily_earnings_and_cost_of_2500KCal_of_bread_1300_1825.csv",
                 mime="text/csv",
             )
-                
 
         ### Plot labour data
         x_title, y_title = "Year", "Time to aquire (minutes)"
