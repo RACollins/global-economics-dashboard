@@ -399,6 +399,88 @@ def transform_spending_df(df, spending_range, growth_range):
     return df, spend_col, growth_col
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_rich_poor_df(root_dir_path):
+    # Load both datasets
+    poor_rich = pd.read_csv(
+        root_dir_path + "/data/daily-income-of-the-poorest-and-richest-decile.csv"
+    )
+    median_gdp = pd.read_csv(
+        root_dir_path
+        + "/data/median-daily-per-capita-expenditure-vs-gdp-per-capita.csv"
+    )
+
+    # Filter for 2022 only
+    poor_rich_2022 = poor_rich[poor_rich["Year"] == 2022].copy()
+    median_gdp_2022 = median_gdp[median_gdp["Year"] == 2022].copy()
+
+    # Merge on country code (Code)
+    merged = pd.merge(
+        poor_rich_2022,
+        median_gdp_2022,
+        left_on="Code",
+        right_on="Code",
+        suffixes=("_poor_rich", "_median_gdp"),
+    )
+
+    # Rename columns for clarity and axis selection
+    merged = merged.rename(
+        columns={
+            "Entity_poor_rich": "Country",
+            "World regions according to OWID_poor_rich": "Region",
+            "Population (historical)_poor_rich": "Population",
+            "Threshold (Poorest decile, 2017 prices) - Income or consumption consolidated": "Income of poorest 10%",
+            "Threshold (Richest decile, 2017 prices) - Income or consumption consolidated": "Income of richest 10%",
+            "Median (2017 prices) - Income or consumption consolidated": "Median income",
+            "GDP per capita, PPP (constant 2017 international $)": "GDP per capita",
+        }
+    )
+
+    # Select only relevant columns
+    merged = merged[
+        [
+            "Country",
+            "Region",
+            "Population",
+            "Income of poorest 10%",
+            "Income of richest 10%",
+            "Median income",
+            "GDP per capita",
+        ]
+    ].copy()
+
+    # Convert to numeric
+    for col in [
+        "Income of poorest 10%",
+        "Income of richest 10%",
+        "Median income",
+        "GDP per capita",
+        "Population",
+    ]:
+        merged[col] = pd.to_numeric(merged[col], errors="coerce")
+
+    # Drop rows with missing values in any of the main columns
+    merged = merged.dropna(
+        subset=[
+            "Income of poorest 10%",
+            "Income of richest 10%",
+            "Median income",
+            "GDP per capita",
+            "Population",
+        ]
+    )
+
+    # Map North America and South America to Americas for consistency
+    merged["Region"] = merged["Region"].replace(
+        {
+            "North America": "Americas",
+            "South America": "Americas",
+        }
+    )
+
+    return merged
+
+
 ##################
 ### App proper ###
 ##################
@@ -469,11 +551,12 @@ def main():
     tab_headers = {
         "tab1": "Spending & Growth",
         "tab2": "Salaries",
-        "tab3": "Forex.",
-        "tab4": "UK Historical GDP",
-        "tab5": "Bread and Silver",
+        "tab3": "Rich & Poor",
+        "tab4": "Forex.",
+        "tab5": "UK Historical GDP",
+        "tab6": "Bread and Silver",
     }
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
         [tab_headers[k] for k, v in tab_headers.items()]
     )
 
@@ -785,6 +868,80 @@ def main():
             )
 
     with tab3:
+        rich_poor_df = get_rich_poor_df(root_dir_path)
+
+        axis_options = [
+            "Income of poorest 10%",
+            "Income of richest 10%",
+            "Median income",
+            "GDP per capita",
+        ]
+        left_rp_buffer, centre_rp_col, right_rp_buffer = st.columns([2, 8, 2])
+        with centre_rp_col:
+            with st.container(border=True):
+                x_axis = st.selectbox(
+                    label="X Axis",
+                    options=axis_options,
+                    index=2,  # Default: Median income
+                )
+                y_axis = st.selectbox(
+                    label="Y Axis",
+                    options=axis_options,
+                    index=0,  # Default: Income of poorest 10%
+                )
+
+        # Apply population weighting if selected
+        plot_df = rich_poor_df.copy()
+        if remove_countries:
+            plot_df = plot_df.loc[~plot_df["Country"].isin(remove_countries), :]
+        if weight_pop:
+            plot_df = add_repeats(plot_df, lowest_repeat, highest_repeat)
+        size = "Population" if show_pop else None
+
+        # Dynamic plot title
+        plot_title = f"{y_axis} vs. {x_axis} (2022)"
+
+        fig = px.scatter(
+            plot_df,
+            x=x_axis,
+            y=y_axis,
+            color="Region",
+            color_discrete_sequence=["red", "magenta", "goldenrod", "green", "blue"],
+            category_orders={
+                "Region": ["Asia", "Americas", "Africa", "Europe", "Oceania"]
+            },
+            size=size,
+            size_max=80,
+            hover_data={"Country": True, "Population": True},
+            trendline="ols",
+            trendline_scope="overall",
+            trendline_color_override="black",
+            title=plot_title,
+            log_x=log_x,
+            log_y=log_y,
+        )
+        fig = apply_graph_stylings(fig)
+        fig = add_country_lables(
+            fig,
+            df=plot_df,
+            countries=display_countries,
+            x_title=x_axis,
+            y_title=y_axis,
+            log_x=log_x,
+            log_y=log_y,
+        )
+        with st.container(border=True):
+            st.plotly_chart(fig, theme=None, use_container_width=True)
+            dwnld_csv_btn = st.download_button(
+                label="Download as CSV",
+                data=plot_df.loc[:, ["Country", "Region", "Population", x_axis, y_axis]]
+                .to_csv(index=True, header=True)
+                .encode("utf-8"),
+                file_name=f"{x_axis}_vs_{y_axis}_rich_poor_2022.csv",
+                mime="text/csv",
+            )
+
+    with tab4:
         ### Apply filters and repeats
         if weight_pop:
             forex_df = add_repeats(forex_df, lowest_repeat, highest_repeat)
@@ -835,7 +992,7 @@ def main():
                 mime="text/csv",
             )
 
-    with tab4:
+    with tab5:
         uk_historical_gdp_df = get_uk_historical_gdp_df(root_dir_path)
 
         ### Filter df
@@ -935,7 +1092,7 @@ def main():
                 mime="text/csv",
             )
 
-    with tab5:
+    with tab6:
         labour_df = get_uk_historical_labour_df(root_dir_path)
         ### Get unique population data for each year
         population_df = labour_df[["Year", "Population (England)"]].drop_duplicates()
